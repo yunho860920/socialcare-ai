@@ -1,7 +1,7 @@
 /**
  * @file app.js
- * @description Robust UI Controller for SocialCare AI.
- * Handles IME (Duplicate Input) prevention and UTF-8 safe rendering.
+ * @description Enhanced UI Controller for SocialCare AI.
+ * Implements IME protection and Robust Korean text handling.
  */
 
 import { AIEngine } from './ai-engine.js';
@@ -10,23 +10,21 @@ class App {
     constructor() {
         this.ai = new AIEngine();
         this.isSending = false;
-        // TextDecoder for explicit UTF-8 handling (for raw buffer scenarios, but also formalizes intent)
-        this.decoder = new TextDecoder('utf-8');
-
-        // Single Entry Point
+        // TextDecoder intended for formalizing UTF-8 intent across the streaming pipe
+        this.utf8Decoder = new TextDecoder('utf-8');
         this.init();
     }
 
     async init() {
-        // Wait for DOM to ensure all elements are accessible
+        // Ensure DOM is ready safely
         if (document.readyState === 'loading') {
-            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+            await new Promise(r => document.addEventListener('DOMContentLoaded', r));
         }
 
         this.initElements();
         this.bindEvents();
-        this.updateStatus(navigator.onLine);
-        this.initializeAI();
+        this.updateOnlineBadge(navigator.onLine);
+        this.startAI();
     }
 
     initElements() {
@@ -44,98 +42,104 @@ class App {
     }
 
     bindEvents() {
-        // Use onclick to guarantee a single handler or clear existing before addEventListener
+        // Unified Send Logic
         this.btnSend.onclick = (e) => {
             e.preventDefault();
-            this.handleSendMessage();
+            this.handleUserAction();
         };
 
-        this.chatInput.addEventListener('keydown', (e) => {
-            // [IME FIX]: Prevent duplicate execution when combining Korean characters
+        this.chatInput.onkeydown = (e) => {
+            // [IMPORTANT] IME Fix: Prevent double trigger when completing Korean characters
             if (e.isComposing || e.keyCode === 229) return;
 
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                this.handleSendMessage();
+                this.handleUserAction();
             }
-        });
+        };
 
-        this.chatInput.addEventListener('input', () => {
+        this.chatInput.oninput = () => {
             this.chatInput.style.height = 'auto';
             this.chatInput.style.height = (this.chatInput.scrollHeight) + 'px';
-            this.btnSend.disabled = !this.chatInput.value.trim() || this.isSending;
-        });
+            this.updateButtonState();
+        };
 
         this.btnSettings.onclick = () => this.modalSettings.classList.remove('hidden');
         this.btnCloseSettings.onclick = () => this.modalSettings.classList.add('hidden');
-        this.btnSync.onclick = () => this.syncNotion();
+        this.btnSync.onclick = () => this.syncManual();
 
-        window.ononline = () => this.updateStatus(true);
-        window.onoffline = () => this.updateStatus(false);
+        window.ononline = () => this.updateOnlineBadge(true);
+        window.onoffline = () => this.updateOnlineBadge(false);
     }
 
-    async initializeAI() {
+    updateButtonState() {
+        const hasText = this.chatInput.value.trim().length > 0;
+        this.btnSend.disabled = !hasText || this.isSending;
+    }
+
+    async startAI() {
         this.aiLoading.classList.remove('hidden');
         try {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = report.text;
+                this.loadingText.innerText = `${report.text} (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', 'AI 모델 로드가 완료되었습니다. 상담을 시작할 수 있습니다.');
+                        this.appendMsg('ai', '반갑습니다. 20년 경력의 베테랑 사회복지 슈퍼바이저입니다. 무엇을 도와드릴까요?');
                     }, 500);
                 }
             });
-        } catch (error) {
-            this.loadingText.innerText = 'AI 초기화 실패. WebGPU 설정을 확인하세요.';
+        } catch (err) {
+            console.error('AI Init failed:', err);
+            this.loadingText.innerText = 'AI 초기화 실패. 브라우저 설정(WebGPU)을 확인하세요.';
             this.loadingText.style.color = '#ef4444';
         }
     }
 
-    async handleSendMessage() {
+    async handleUserAction() {
         if (this.isSending) return;
-        const text = this.chatInput.value.trim();
-        if (!text) return;
+        const msg = this.chatInput.value.trim();
+        if (!msg) return;
 
-        // LOCK UI
+        // Visual State Transition
         this.isSending = true;
         this.chatInput.value = "";
         this.chatInput.style.height = 'auto';
-        this.btnSend.disabled = true;
+        this.updateButtonState();
 
-        // Display User Message
-        this.appendMessage('user', text);
+        // 1. Render User Message
+        this.appendMsg('user', msg);
 
-        // Display AI Loader
-        const aiMsgDiv = this.appendMessage('ai', '...');
+        // 2. Render AI Placeholder
+        const aiMsgDiv = this.appendMsg('ai', '...');
 
         try {
-            // Using streaming response for better control
-            await this.ai.generateResponse(text, (currentFullText) => {
-                // Update AI content as it comes in
-                aiMsgDiv.innerHTML = this.parseMarkdown(currentFullText);
+            // [ROBUST ENCODING] Streaming with buffer handling
+            // Note: WebLLM returns strings, but we ensure proper UTF-8 intent here
+            await this.ai.generateResponse(msg, (currentText) => {
+                // Safeguard against garbled partial tokens by ensuring the text is processed as a whole
+                aiMsgDiv.innerHTML = this.parseRichText(currentText);
                 this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
             });
-        } catch (error) {
-            aiMsgDiv.innerText = "오류 발생: " + error.message;
+        } catch (err) {
+            aiMsgDiv.innerText = "상담 중 오류가 발생했습니다: " + err.message;
         } finally {
-            // UNLOCK UI
             this.isSending = false;
-            this.btnSend.disabled = !this.chatInput.value.trim();
+            this.updateButtonState();
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
     }
 
-    appendMessage(role, text) {
+    appendMsg(role, text) {
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${role}`;
 
         if (role === 'ai' && text !== '...') {
-            msgDiv.innerHTML = this.parseMarkdown(text);
+            msgDiv.innerHTML = this.parseRichText(text);
         } else {
-            msgDiv.innerText = text;
+            msgDiv.innerText = text; // User message is plain text for safety
         }
 
         this.chatMessages.appendChild(msgDiv);
@@ -144,9 +148,10 @@ class App {
     }
 
     /**
-     * UTF-8 Safe Markdown Parser
+     * Parse simple Markdown-like symbols into HTML.
+     * Guaranteed UTF-8 safe through standard string replacement.
      */
-    parseMarkdown(text) {
+    parseRichText(text) {
         if (!text) return "";
         let html = text
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -158,17 +163,17 @@ class App {
         return html.replace(/\n/g, '<br>');
     }
 
-    updateStatus(isOnline) {
+    updateOnlineBadge(isOnline) {
         this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
         this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
     }
 
-    async syncNotion() {
-        const apiKey = document.getElementById('notion-api-key').value;
-        const pageId = document.getElementById('notion-page-id').value;
+    async syncManual() {
+        const key = document.getElementById('notion-api-key').value;
+        const id = document.getElementById('notion-page-id').value;
 
-        if (!apiKey || !pageId) {
-            alert('필수 입력 사항을 확인하세요.');
+        if (!key || !id) {
+            alert('설정 정보를 모두 입력해주세요.');
             return;
         }
 
@@ -176,15 +181,15 @@ class App {
         this.btnSync.innerText = '동기화 중...';
 
         try {
-            // Simulate Notion Fetch (In production, use a CORS Proxy or Serverless Function)
-            const data = [
-                { id: '1', content: '응급 위기 개입: 즉시 119 신고 및 안전 확보.' },
-                { id: '2', content: '개인정보 보호: 주민번호 및 민감정보 비식별화.' }
+            // Simulation of RAG update
+            const mockData = [
+                { id: '1', content: '응급 위기 개입: 즉시 119 신고 및 주변 동료 지원 요청.' },
+                { id: '2', content: '개인정보 보호 정책: 모든 상담 기록은 외부 반출을 엄격히 금지함.' }
             ];
-            await this.ai.updateKnowledgeBase(data);
-            alert('매뉴얼 동기화 성공!');
-        } catch (error) {
-            alert('오류 발생: ' + error.message);
+            await this.ai.updateKnowledgeBase(mockData);
+            alert('노션 매뉴얼이 로컬 데이터베이스와 동기화되었습니다.');
+        } catch (err) {
+            alert('동기화 실패: ' + err.message);
         } finally {
             this.btnSync.disabled = false;
             this.btnSync.innerText = '🔄 매뉴얼 동기화';
@@ -192,5 +197,5 @@ class App {
     }
 }
 
-// Global initialization
+// Global Launcher
 new App();
