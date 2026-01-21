@@ -9,11 +9,9 @@ export class AIEngine {
     }
 
     async initialize(onProgress) {
-        // Initialize IndexedDB for knowledge base
         this.db = await this.initDB();
         await this.loadLocalKnowledge();
 
-        // Initialize WebLLM Engine
         this.engine = await webllm.CreateMLCEngine(this.modelName, {
             initProgressCallback: onProgress,
         });
@@ -52,33 +50,28 @@ export class AIEngine {
         this.knowledgeBase = data;
     }
 
-    /**
-     * Simple RAG: Finds relevant manual snippets based on keyword matching.
-     * In a production environment with Transformers.js, this would use vector embeddings.
-     */
     retrieveContext(query) {
         if (this.knowledgeBase.length === 0) return "";
-
-        // Very basic simple keyword search simulation for RAG
+        const keywords = query.split(/\s+/).filter(w => w.length > 1);
         const relevant = this.knowledgeBase.filter(item =>
-            query.split(' ').some(word => item.content.includes(word))
+            keywords.some(word => item.content.includes(word))
         );
-
         return relevant.map(r => r.content).join("\n");
     }
 
-    async generateResponse(userInput) {
+    async generateResponse(userInput, onChunk) {
         if (!this.engine) throw new Error("AI Engine not initialized");
 
         const context = this.retrieveContext(userInput);
-        const systemPrompt = `당신은 20년 차 베테랑 사회복지 슈퍼바이저입니다. 
-당신은 제공된 [매뉴얼 데이터]를 바탕으로 사회복지사에게 전문적인 조언을 제공해야 합니다.
+        // Explicit System Prompt for Role, Encoding, and Format
+        const systemPrompt = `당신은 20년 차 베테랑 사회복지 슈퍼바이저입니다.
+반드시 **한국어**로만 답변하고, 출력 시 깨지는 문자가 없도록 표준 **UTF-8** 형식을 엄격히 준수하십시오.
 
 **[답변 규칙]**
-1. **핵심 요약**: 답변의 최상단에 결론이나 핵심 내용을 1~2문장으로 요약하여 제시하십시오.
-2. **구조화된 상세 내용**: 반드시 글머리 기호(Bullet points, \`-\`)를 사용하여 내용을 구조화하십시오.
-3. **강조**: 중요한 단어, 전문 용어, 숫자는 반드시 볼드체(\`**...**\`)를 적용하십시오.
-4. **금지 사항**: 말끝을 "..."으로 흐리지 마십시오. 매뉴얼 내용을 단순 복사-붙여넣기 하지 말고, 현장 경험이 녹아든 조언으로 재구성하십시오.
+1. **핵심 요약**: 답변 최상단에 결론을 1~2문장으로 요약하십시오.
+2. **구조화**: 반드시 글머리 기호(\`-\`)를 사용하여 내용을 정리하십시오.
+3. **강조**: 중요한 용어는 반드시 **볼드체**를 적용하십시오.
+4. **금지**: 찾은 내용을 단순 복사하지 말고, 슈퍼바이저의 시각에서 재구성하십시오.
 
 [매뉴얼 데이터]
 ${context || "현재 저장된 매뉴얼 데이터가 없습니다."}
@@ -89,12 +82,21 @@ ${context || "현재 저장된 매뉴얼 데이터가 없습니다."}
             { role: "user", content: userInput },
         ];
 
+        // Implementing Streaming for better UX and handling potential encoding chunks
         const chunks = await this.engine.chat.completions.create({
             messages,
-            temperature: 0.7,
-            stream: false // For simplicity, non-streaming in this demo
+            temperature: 0.6,
+            stream: true
         });
 
-        return chunks.choices[0].message.content;
+        let fullText = "";
+        for await (const chunk of chunks) {
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+                fullText += content;
+                if (onChunk) onChunk(fullText);
+            }
+        }
+        return fullText;
     }
 }
