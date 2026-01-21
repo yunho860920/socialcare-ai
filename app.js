@@ -181,6 +181,10 @@ class App {
                 { id: '2', content: '[매뉴얼] 재학대 방지를 위한 모니터링은 주 1회 이상 유선 또는 대면으로 실시함을 원칙으로 함.' }
             ];
             await this.ai.updateKnowledgeBase(data);
+
+            // [SUCCESS LOG] Ensure it shows up in console as requested
+            console.log(`[SUCCESS] Notion Data Loaded:`, data);
+
             alert('노션 데이터 동기화 완료! 이제 매뉴얼을 기반으로 답변합니다.');
         } catch (err) {
             alert('실패');
