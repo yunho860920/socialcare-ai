@@ -1,8 +1,7 @@
 import * as webllm from "@mlc-ai/web-llm";
 
 /**
- * AI Engine for SocialCare Offline Chatbot.
- * Focus: Robust RAG prioritization and memory stability.
+ * AI Engine: Optimized for Korean-only, low-latency, and Precise RAG.
  */
 export class AIEngine {
     constructor() {
@@ -10,7 +9,6 @@ export class AIEngine {
         this.modelName = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
         this.knowledgeBase = [];
         this.db = null;
-        this.maxContextLength = 1500; // Limit manual context to prevent memory issues
     }
 
     async initialize(onProgress) {
@@ -42,6 +40,10 @@ export class AIEngine {
         const request = store.getAll();
         request.onsuccess = () => {
             this.knowledgeBase = request.result;
+            if (this.knowledgeBase.length > 0) {
+                const preview = this.knowledgeBase[0].content.substring(0, 100);
+                console.log(`[NOTION_CHECK] First entry preview: ${preview}`);
+            }
         };
     }
 
@@ -54,57 +56,66 @@ export class AIEngine {
         }
         this.knowledgeBase = data;
 
-        // [SUCCESS LOG] Added as requested by user
-        console.log(`[SUCCESS] Notion Data Loaded:`, data);
+        // Log the first 100 chars as requested
+        if (data.length > 0) {
+            const logContent = data[0].content.substring(0, 100);
+            console.log(`[NOTION_CHECK] Data Received: ${logContent}`);
+        }
     }
 
     /**
-     * Enhanced Retrieval: prioritizes relevant snippets and truncates to avoid memory errors.
+     * Mini-Search RAG: Selects only top 3-5 relevant sentences to save context and prevent hallucination.
      */
     retrieveContext(query) {
-        if (this.knowledgeBase.length === 0) return "";
+        if (this.knowledgeBase.length === 0) return null;
 
         const keywords = query.split(/\s+/).filter(w => w.length > 1);
-        let relevant = this.knowledgeBase.filter(item =>
-            keywords.some(word => item.content.includes(word))
-        );
 
-        // Fallback to most recent manual entries if no keyword match
-        if (relevant.length === 0) {
-            relevant = this.knowledgeBase.slice(-2);
-        }
+        // Flatten all manual content into sentences
+        let allSentences = [];
+        this.knowledgeBase.forEach(item => {
+            const sentences = item.content.split(/[.!?\n]/).filter(s => s.trim().length > 5);
+            allSentences = allSentences.concat(sentences);
+        });
 
-        let combined = relevant.map(r => r.content).join("\n\n");
+        // Score sentences based on keyword overlap
+        const scored = allSentences.map(s => {
+            let score = 0;
+            keywords.forEach(k => { if (s.includes(k)) score++; });
+            return { sentence: s.trim(), score };
+        }).filter(item => item.score > 0);
 
-        // Truncate logic for stability on low-spec PCs
-        if (combined.length > this.maxContextLength) {
-            combined = combined.substring(0, this.maxContextLength) + "... (이후 내용 생략)";
-        }
+        // Sort by relevance and pick top 5
+        const topSentences = scored
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(item => item.sentence);
 
-        return combined;
+        return topSentences.length > 0 ? topSentences.join(". ") : null;
     }
 
     async generateResponse(userInput, onChunk) {
         if (!this.engine) throw new Error("AI Engine not initialized");
 
-        const manualData = this.retrieveContext(userInput);
+        const manualContext = this.retrieveContext(userInput);
 
-        // STRENGTHENED RAG SYSTEM PROMPT
-        const systemPrompt = `당신은 아동보호전문기관(CPS)의 '연호 선생님'을 돕는 전문 AI 비서입니다.
+        let contextSection = "";
+        if (manualContext) {
+            contextSection = `[노션 매뉴얼 데이터]\n${manualContext}`;
+        } else {
+            contextSection = "매뉴얼 데이터를 불러오지 못했습니다.";
+        }
 
-**[최우선 원칙]**
-1. 당신은 반드시 제공된 **[노션 매뉴얼 데이터]**를 가장 먼저 참조하여 답변해야 합니다.
-2. 답변을 시작할 때, 매뉴얼에 해당 내용이 있다면 반드시 **"노션 매뉴얼 확인 결과,"** 또는 **"데이터베이스에 명시된 지침에 따르면,"**과 같이 출처를 밝히십시오.
-3. 매뉴얼에 없는 내용에 대해 답변할 때는 "현재 매뉴얼에는 없지만, 일반적인 대응 절차로는..."이라고 조언하십시오.
+        const systemPrompt = `너는 아동보호전문기관(CPS)의 '연호 선생님'을 돕는 한국어 전용 AI 비서다.
+**영어, 베트남어, 한자를 절대 섞지 말고 표준 한국어만 사용하라.**
 
-**[답변 형식]**
-- 역할: 전문적이고 신뢰감 있는 아동학대 대응 전문가.
-- 언어: 반드시 **한국어**로만 답변.
-- 강조: 법률 조항, 신고 번호, 긴급 조치 사항은 **볼드체** 적용.
-- 구조: 결론부터 말하고 상세 내용은 글머리 기호(\`-\`)를 사용.
+**[응대 원칙]**
+1. 매뉴얼 데이터가 있다면 반드시 **"노션 매뉴얼 확인 결과:"**라고 답변을 시작하라.
+2. 매뉴얼 데이터가 없다면 **"매뉴얼 데이터를 불러오지 못했습니다."**라고 먼저 말한 뒤 아는 선에서 조언하라.
+3. 아동학대 대응 전문가로서 전문적이고 단호하면서도 친절한 한국어 문체를 유지하라.
+4. 환각 증세 없이, 오직 주어진 매뉴얼과 상식에 기반해 한국어로만 짧고 명확하게 답변하라.
 
-[노션 매뉴얼 데이터]
-${manualData || "현재 동기화된 노션 매뉴얼 데이터가 없습니다. 매뉴얼 확인이 불가능합니다."}
+${contextSection}
 `;
 
         const messages = [
@@ -114,8 +125,7 @@ ${manualData || "현재 동기화된 노션 매뉴얼 데이터가 없습니다.
 
         const chunks = await this.engine.chat.completions.create({
             messages,
-            temperature: 0.1, // Highly deterministic for manual lookup
-            top_p: 1.0,
+            temperature: 0.1, // Fixed for high determinism
             repetition_penalty: 1.2,
             stream: true
         });
