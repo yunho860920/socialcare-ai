@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocialCare AI - 오프라인 상담 매뉴얼</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <!-- WebLLM & Transformers.js CDN -->
+    <script type="importmap">
+        {
+          "imports": {
+            "@mlc-ai/web-llm": "https://esm.run/@mlc-ai/web-llm"
+          }
+        }
+    </script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <div class="header-left">
+                <h1>SocialCare AI</h1>
+                <span id="status-badge" class="badge-offline">🔴 오프라인</span>
+            </div>
+            <div class="header-right">
+                <button id="btn-settings" aria-label="Settings">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main id="chat-container">
+            <div id="chat-messages">
+                <div class="message ai greeting">
+                    안녕하세요. 사회복지 상담 매뉴얼 AI입니다. <br>
+                    무엇을 도와드릴까요? (데이터는 사용자 기기에만 저장됩니다.)
+                </div>
+            </div>
+            
+            <!-- Loading Indicator -->
+            <div id="ai-loading" class="hidden">
+                <div class="progress-bar-container">
+                    <p id="loading-text">AI 모델을 불러오는 중...</p>
+                    <div class="progress-bar">
+                        <div id="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer Input -->
+        <footer>
+            <div class="input-wrapper">
+                <textarea id="chat-input" placeholder="상담 내용을 입력하세요 (비식별화 처리됨)..." rows="1"></textarea>
+                <button id="btn-send" disabled>전송</button>
+            </div>
+        </footer>
+
+        <!-- Settings Modal -->
+        <div id="modal-settings" class="modal hidden">
+            <div class="modal-content">
+                <h2>⚙️ 설정</h2>
+                <div class="setting-item">
+                    <label for="notion-api-key">Notion API Key</label>
+                    <input type="password" id="notion-api-key" placeholder="secret_...">
+                </div>
+                <div class="setting-item">
+                    <label for="notion-page-id">Manual Page ID</label>
+                    <input type="text" id="notion-page-id" placeholder="32-char ID">
+                </div>
+                <div class="modal-actions">
+                    <button id="btn-sync-notion" class="btn-primary">🔄 매뉴얼 동기화</button>
+                    <button id="btn-close-settings">닫기</button>
+                </div>
+                <p class="security-note">⚠️ 보안 안내: 입력된 정보는 브라우저 로컬 저장소 이외에 전송되지 않습니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
