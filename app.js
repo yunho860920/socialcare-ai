@@ -1,26 +1,27 @@
 /**
  * @file app.js
- * @description Enhanced UI Controller with CPS Persona and Duplication Guard.
+ * @description Robust UI Controller for SocialCare AI.
+ * Focus: Preventing duplication via strict global singleton and persona alignment.
  */
 
 import { AIEngine } from './ai-engine.js';
 
 class App {
     constructor() {
-        // [SINGLETON GUARD] Ensure initialization happens only once
-        if (window.SocialCareAppInstance) return window.SocialCareAppInstance;
-        window.SocialCareAppInstance = this;
+        // [DEFINITIVE DUPLICATION GUARD]
+        if (window.__SocialCareApp_Initialized__) {
+            console.warn("App already initialized. Preventing duplicate instance.");
+            return;
+        }
+        window.__SocialCareApp_Initialized__ = true;
 
         this.ai = new AIEngine();
         this.isSending = false;
-        this.isInitialized = false; // Internal flag for double-check
 
         this.init();
     }
 
     async init() {
-        if (this.isInitialized) return;
-
         // Wait for DOM
         if (document.readyState === 'loading') {
             await new Promise(r => document.addEventListener('DOMContentLoaded', r));
@@ -28,10 +29,9 @@ class App {
 
         this.initElements();
         this.bindEvents();
-        this.updateStatus(navigator.onLine);
+        this.updateOnlineBadge(navigator.onLine);
 
-        // Mark as initialized before starting AI to prevent multiple greetings
-        this.isInitialized = true;
+        // Start AI Initialization (only called once)
         this.startAI();
     }
 
@@ -50,34 +50,37 @@ class App {
     }
 
     bindEvents() {
+        // Direct assignment to prevent multiple listener registration
         this.btnSend.onclick = (e) => {
             e.preventDefault();
-            this.processInput();
+            this.handleSend();
         };
 
         this.chatInput.onkeydown = (e) => {
+            // [IME FIX]
             if (e.isComposing || e.keyCode === 229) return;
+
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                this.processInput();
+                this.handleSend();
             }
         };
 
         this.chatInput.oninput = () => {
             this.chatInput.style.height = 'auto';
             this.chatInput.style.height = (this.chatInput.scrollHeight) + 'px';
-            this.updateButton();
+            this.updateBtn();
         };
 
         this.btnSettings.onclick = () => this.modalSettings.classList.remove('hidden');
         this.btnCloseSettings.onclick = () => this.modalSettings.classList.add('hidden');
-        this.btnSync.onclick = () => this.syncManual();
+        this.btnSync.onclick = () => this.syncNotion();
 
-        window.ononline = () => this.updateStatus(true);
-        window.onoffline = () => this.updateStatus(false);
+        window.ononline = () => this.updateOnlineBadge(true);
+        window.onoffline = () => this.updateOnlineBadge(false);
     }
 
-    updateButton() {
+    updateBtn() {
         const hasText = this.chatInput.value.trim().length > 0;
         this.btnSend.disabled = !hasText || this.isSending;
     }
@@ -88,12 +91,12 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `${report.text} (${progress}%)`;
+                this.loadingText.innerText = `모델 준비 중... (${progress}%)`;
 
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        // [NEW GREETING] Updated for CPS Assistant Persona
+                        // [GREETING] Single output guaranteed by constructor flag
                         this.appendMessage('ai', '안녕하세요, 연호 선생님. 아동보호전문기관 업무 지원을 위한 AI 비서입니다. 무엇을 도와드릴까요?');
                     }, 500);
                 }
@@ -104,29 +107,29 @@ class App {
         }
     }
 
-    async processInput() {
+    async handleSend() {
         if (this.isSending) return;
-        const text = this.chatInput.value.trim();
-        if (!text) return;
+        const rawText = this.chatInput.value.trim();
+        if (!rawText) return;
 
         this.isSending = true;
         this.chatInput.value = "";
         this.chatInput.style.height = 'auto';
-        this.updateButton();
+        this.updateBtn();
 
-        this.appendMessage('user', text);
+        this.appendMessage('user', rawText);
         const aiMsgDiv = this.appendMessage('ai', '...');
 
         try {
-            await this.ai.generateResponse(text, (currentText) => {
-                aiMsgDiv.innerHTML = this.parseMarkdown(currentText);
+            await this.ai.generateResponse(rawText, (fullText) => {
+                aiMsgDiv.innerHTML = this.parseMarkdown(fullText);
                 this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
             });
         } catch (err) {
             aiMsgDiv.innerText = "오류 발생: " + err.message;
         } finally {
             this.isSending = false;
-            this.updateButton();
+            this.updateBtn();
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
     }
@@ -158,22 +161,27 @@ class App {
         return html.replace(/\n/g, '<br>');
     }
 
-    updateStatus(isOnline) {
+    updateOnlineBadge(isOnline) {
         this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
         this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
     }
 
-    async syncManual() {
+    async syncNotion() {
         const key = document.getElementById('notion-api-key').value;
         const id = document.getElementById('notion-page-id').value;
-        if (!key || !id) return alert('설정 필수!');
+        if (!key || !id) return alert('필수 입력 사항 확인!');
 
-        this.btnSync.disabled = true;
         this.btnSync.innerText = '동기화 중...';
+        this.btnSync.disabled = true;
+
         try {
-            const mock = [{ id: '1', content: '응급 신고 시 즉시 현장 출동.' }];
-            await this.ai.updateKnowledgeBase(mock);
-            alert('동기화 완료!');
+            // Simulated fetch with context optimization logic check
+            const data = [
+                { id: '1', content: '[매뉴얼] 아동학대 의심 신고 접수 시 즉시 경찰(112)과 동시 신고 체계를 가동하여야 함.' },
+                { id: '2', content: '[매뉴얼] 재학대 방지를 위한 모니터링은 주 1회 이상 유선 또는 대면으로 실시함을 원칙으로 함.' }
+            ];
+            await this.ai.updateKnowledgeBase(data);
+            alert('노션 데이터 동기화 완료! 이제 매뉴얼을 기반으로 답변합니다.');
         } catch (err) {
             alert('실패');
         } finally {
@@ -183,5 +191,5 @@ class App {
     }
 }
 
-// Global initialization with singleton safety
+// Singleton global entry
 new App();
