@@ -1,8 +1,13 @@
 import * as webllm from "@mlc-ai/web-llm";
 
+/**
+ * AI Engine for SocialCare Offline Chatbot.
+ * Optimized for Llama-3.2-1B-Instruct and Korean response quality.
+ */
 export class AIEngine {
     constructor() {
         this.engine = null;
+        // Low-latency, small footprint model choice for low-spec PCs
         this.modelName = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
         this.knowledgeBase = [];
         this.db = null;
@@ -12,6 +17,7 @@ export class AIEngine {
         this.db = await this.initDB();
         await this.loadLocalKnowledge();
 
+        // Initialize MLC AI Engine
         this.engine = await webllm.CreateMLCEngine(this.modelName, {
             initProgressCallback: onProgress,
         });
@@ -63,15 +69,17 @@ export class AIEngine {
         if (!this.engine) throw new Error("AI Engine not initialized");
 
         const context = this.retrieveContext(userInput);
-        // Explicit System Prompt for Role, Encoding, and Format
+
+        // Stricter system prompt for better consistency and encoding compliance
         const systemPrompt = `당신은 20년 차 베테랑 사회복지 슈퍼바이저입니다.
-반드시 **한국어**로만 답변하고, 출력 시 깨지는 문자가 없도록 표준 **UTF-8** 형식을 엄격히 준수하십시오.
+반드시 **한국어(Korean)**로만 답변하십시오. 
+출력 시 깨지는 문자가 없도록 표준 **UTF-8** 텍스트 형식을 유지하십시오.
 
 **[답변 규칙]**
-1. **핵심 요약**: 답변 최상단에 결론을 1~2문장으로 요약하십시오.
-2. **구조화**: 반드시 글머리 기호(\`-\`)를 사용하여 내용을 정리하십시오.
-3. **강조**: 중요한 용어는 반드시 **볼드체**를 적용하십시오.
-4. **금지**: 찾은 내용을 단순 복사하지 말고, 슈퍼바이저의 시각에서 재구성하십시오.
+1. **결론 중심**: 답변 시작 시 1~2문장의 핵심 요약을 제공하십시오.
+2. **구조화**: 글머리 기호(\`-\`)를 사용하여 가독성을 높이십시오.
+3. **전문성**: 중요한 상담 기법이나 용어는 **볼드체**를 적용하십시오.
+4. **정확성**: 제공된 [매뉴얼 데이터]에 근거하여 조언하되, 원문을 복사하지 말고 재구성하십시오.
 
 [매뉴얼 데이터]
 ${context || "현재 저장된 매뉴얼 데이터가 없습니다."}
@@ -82,11 +90,18 @@ ${context || "현재 저장된 매뉴얼 데이터가 없습니다."}
             { role: "user", content: userInput },
         ];
 
-        // Implementing Streaming for better UX and handling potential encoding chunks
+        // Optimized Generation Parameters for Hallucination reduction and Consistency
+        const genConfig = {
+            temperature: 0.2,         // Low temperature for consistency
+            top_p: 0.9,               // Nucleus sampling
+            repetition_penalty: 1.1,  // Avoid repeated phrases
+            max_tokens: 1024,
+            stream: true
+        };
+
         const chunks = await this.engine.chat.completions.create({
             messages,
-            temperature: 0.6,
-            stream: true
+            ...genConfig
         });
 
         let fullText = "";
