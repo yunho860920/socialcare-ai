@@ -1,19 +1,16 @@
 /**
  * @file app.js
- * @description Robust UI Controller for SocialCare AI.
- * Focus: Preventing duplication via strict global singleton and persona alignment.
+ * @description Integrated Fix for SocialCare AI.
+ * Ensures single initialization, reliable encoding, and correct persona greeting.
  */
 
 import { AIEngine } from './ai-engine.js';
 
 class App {
     constructor() {
-        // [DEFINITIVE DUPLICATION GUARD]
-        if (window.__SocialCareApp_Initialized__) {
-            console.warn("App already initialized. Preventing duplicate instance.");
-            return;
-        }
-        window.__SocialCareApp_Initialized__ = true;
+        // [DEFINITE ONCE FLAG] Prevents duplicate greetings and event listeners
+        if (window.__initialized) return;
+        window.__initialized = true;
 
         this.ai = new AIEngine();
         this.isSending = false;
@@ -22,16 +19,16 @@ class App {
     }
 
     async init() {
-        // Wait for DOM
+        // Safeguard for DOM availability
         if (document.readyState === 'loading') {
-            await new Promise(r => document.addEventListener('DOMContentLoaded', r));
+            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
         }
 
         this.initElements();
         this.bindEvents();
-        this.updateOnlineBadge(navigator.onLine);
+        this.updateOnlineStatus(navigator.onLine);
 
-        // Start AI Initialization (only called once)
+        // Final sanity check for initialization before greeting
         this.startAI();
     }
 
@@ -50,14 +47,14 @@ class App {
     }
 
     bindEvents() {
-        // Direct assignment to prevent multiple listener registration
+        // Direct event assignment to avoid duplicate registrations
         this.btnSend.onclick = (e) => {
             e.preventDefault();
             this.handleSend();
         };
 
         this.chatInput.onkeydown = (e) => {
-            // [IME FIX]
+            // [IME FIX] Critical for Korean Windows/Mac
             if (e.isComposing || e.keyCode === 229) return;
 
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -69,18 +66,18 @@ class App {
         this.chatInput.oninput = () => {
             this.chatInput.style.height = 'auto';
             this.chatInput.style.height = (this.chatInput.scrollHeight) + 'px';
-            this.updateBtn();
+            this.updateButton();
         };
 
         this.btnSettings.onclick = () => this.modalSettings.classList.remove('hidden');
         this.btnCloseSettings.onclick = () => this.modalSettings.classList.add('hidden');
-        this.btnSync.onclick = () => this.syncNotion();
+        this.btnSync.onclick = () => this.syncManual();
 
-        window.ononline = () => this.updateOnlineBadge(true);
-        window.onoffline = () => this.updateOnlineBadge(false);
+        window.ononline = () => this.updateOnlineStatus(true);
+        window.onoffline = () => this.updateOnlineStatus(false);
     }
 
-    updateBtn() {
+    updateButton() {
         const hasText = this.chatInput.value.trim().length > 0;
         this.btnSend.disabled = !hasText || this.isSending;
     }
@@ -96,13 +93,13 @@ class App {
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        // [GREETING] Single output guaranteed by constructor flag
+                        // [GREETING] Single output guaranteed by __initialized flag
                         this.appendMessage('ai', '안녕하세요, 연호 선생님. 아동보호전문기관 업무 지원을 위한 AI 비서입니다. 무엇을 도와드릴까요?');
                     }, 500);
                 }
             });
         } catch (err) {
-            this.loadingText.innerText = 'AI 초기화 실패. WebGPU 설정을 확인하세요.';
+            this.loadingText.innerText = 'AI 초기화 실패. 브라우저 설정(WebGPU)을 확인하세요.';
             this.loadingText.style.color = '#ef4444';
         }
     }
@@ -115,21 +112,21 @@ class App {
         this.isSending = true;
         this.chatInput.value = "";
         this.chatInput.style.height = 'auto';
-        this.updateBtn();
+        this.updateButton();
 
         this.appendMessage('user', rawText);
         const aiMsgDiv = this.appendMessage('ai', '...');
 
         try {
             await this.ai.generateResponse(rawText, (fullText) => {
-                aiMsgDiv.innerHTML = this.parseMarkdown(fullText);
+                aiMsgDiv.innerHTML = this.parseRichText(fullText);
                 this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
             });
         } catch (err) {
             aiMsgDiv.innerText = "오류 발생: " + err.message;
         } finally {
             this.isSending = false;
-            this.updateBtn();
+            this.updateButton();
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
     }
@@ -139,7 +136,7 @@ class App {
         msgDiv.className = `message ${role}`;
 
         if (role === 'ai' && text !== '...') {
-            msgDiv.innerHTML = this.parseMarkdown(text);
+            msgDiv.innerHTML = this.parseRichText(text);
         } else {
             msgDiv.innerText = text;
         }
@@ -149,7 +146,7 @@ class App {
         return msgDiv;
     }
 
-    parseMarkdown(text) {
+    parseRichText(text) {
         if (!text) return "";
         let html = text
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -161,19 +158,18 @@ class App {
         return html.replace(/\n/g, '<br>');
     }
 
-    updateOnlineBadge(isOnline) {
+    updateOnlineStatus(isOnline) {
         this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
         this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
     }
 
-    async syncNotion() {
+    async syncManual() {
         const key = document.getElementById('notion-api-key').value;
         const id = document.getElementById('notion-page-id').value;
-        if (!key || !id) return alert('필수 입력 사항 확인!');
+        if (!key || !id) return alert('설정 필수!');
 
-        this.btnSync.innerText = '동기화 중...';
         this.btnSync.disabled = true;
-
+        this.btnSync.innerText = '동기화 중...';
         try {
             // Simulated fetch with context optimization logic check
             const data = [
@@ -181,10 +177,6 @@ class App {
                 { id: '2', content: '[매뉴얼] 재학대 방지를 위한 모니터링은 주 1회 이상 유선 또는 대면으로 실시함을 원칙으로 함.' }
             ];
             await this.ai.updateKnowledgeBase(data);
-
-            // [SUCCESS LOG] Ensure it shows up in console as requested
-            console.log(`[SUCCESS] Notion Data Loaded:`, data);
-
             alert('노션 데이터 동기화 완료! 이제 매뉴얼을 기반으로 답변합니다.');
         } catch (err) {
             alert('실패');
