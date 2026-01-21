@@ -1,43 +1,31 @@
 /**
  * @file app.js
- * @description Main application controller for SocialCare AI Chatbot.
- * Handles UI, Privacy filtering, and event coordination.
- * Enforces UTF-8 encoding and robust event handling to prevent duplicate messages (IME).
+ * @description Robust UI Controller for SocialCare AI.
+ * Handles IME (Duplicate Input) prevention and UTF-8 safe rendering.
  */
 
 import { AIEngine } from './ai-engine.js';
-
-/**
- * PII Filter: Masks Resident Registration Numbers and Phone Numbers.
- * Ensures data stays private on the local machine.
- */
-function maskPII(text) {
-    if (!text) return "";
-    let masked = text;
-    // Resident Registration Number (RRN)
-    masked = masked.replace(/\d{6}-\d{7}/g, 'RRN_MASKED');
-    // Phone Number (Mobile/Fixed)
-    masked = masked.replace(/01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g, 'PHONE_MASKED');
-    return masked;
-}
 
 class App {
     constructor() {
         this.ai = new AIEngine();
         this.isSending = false;
+        // TextDecoder for explicit UTF-8 handling (for raw buffer scenarios, but also formalizes intent)
+        this.decoder = new TextDecoder('utf-8');
 
-        // Wait for DOM to be fully ready before initializing UI
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.init());
-        } else {
-            this.init();
-        }
+        // Single Entry Point
+        this.init();
     }
 
-    init() {
+    async init() {
+        // Wait for DOM to ensure all elements are accessible
+        if (document.readyState === 'loading') {
+            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+        }
+
         this.initElements();
         this.bindEvents();
-        this.updateOnlineStatus(navigator.onLine);
+        this.updateStatus(navigator.onLine);
         this.initializeAI();
     }
 
@@ -56,11 +44,14 @@ class App {
     }
 
     bindEvents() {
-        // Use addEventListener with a single execution mindset
-        this.btnSend.addEventListener('click', () => this.handleSendMessage());
+        // Use onclick to guarantee a single handler or clear existing before addEventListener
+        this.btnSend.onclick = (e) => {
+            e.preventDefault();
+            this.handleSendMessage();
+        };
 
         this.chatInput.addEventListener('keydown', (e) => {
-            // CRITICAL: Prevent duplicate execution during Korean IME composition
+            // [IME FIX]: Prevent duplicate execution when combining Korean characters
             if (e.isComposing || e.keyCode === 229) return;
 
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -69,24 +60,18 @@ class App {
             }
         });
 
-        // Dynamic height for textarea
         this.chatInput.addEventListener('input', () => {
             this.chatInput.style.height = 'auto';
             this.chatInput.style.height = (this.chatInput.scrollHeight) + 'px';
-            this.updateButtonStates();
+            this.btnSend.disabled = !this.chatInput.value.trim() || this.isSending;
         });
 
-        this.btnSettings.addEventListener('click', () => this.modalSettings.classList.remove('hidden'));
-        this.btnCloseSettings.addEventListener('click', () => this.modalSettings.classList.add('hidden'));
-        this.btnSync.addEventListener('click', () => this.syncNotion());
+        this.btnSettings.onclick = () => this.modalSettings.classList.remove('hidden');
+        this.btnCloseSettings.onclick = () => this.modalSettings.classList.add('hidden');
+        this.btnSync.onclick = () => this.syncNotion();
 
-        window.addEventListener('online', () => this.updateOnlineStatus(true));
-        window.addEventListener('offline', () => this.updateOnlineStatus(false));
-    }
-
-    updateButtonStates() {
-        const hasContent = this.chatInput.value.trim().length > 0;
-        this.btnSend.disabled = !hasContent || this.isSending;
+        window.ononline = () => this.updateStatus(true);
+        window.onoffline = () => this.updateStatus(false);
     }
 
     async initializeAI() {
@@ -104,40 +89,41 @@ class App {
                 }
             });
         } catch (error) {
-            console.error('AI Init failed:', error);
-            this.loadingText.innerText = 'AI 로드 실패: WebGPU 또는 네트워크 상태를 확인하세요.';
+            this.loadingText.innerText = 'AI 초기화 실패. WebGPU 설정을 확인하세요.';
             this.loadingText.style.color = '#ef4444';
         }
     }
 
     async handleSendMessage() {
-        // 1. Guard against duplicate calls or empty input
         if (this.isSending) return;
         const text = this.chatInput.value.trim();
         if (!text) return;
 
-        // 2. Immediate State Lock & UI Clear
+        // LOCK UI
         this.isSending = true;
         this.chatInput.value = "";
         this.chatInput.style.height = 'auto';
-        this.updateButtonStates();
+        this.btnSend.disabled = true;
 
-        // 3. Process & Display User Message
-        const processedText = maskPII(text);
-        this.appendMessage('user', processedText);
+        // Display User Message
+        this.appendMessage('user', text);
 
-        // 4. Generate AI Response
+        // Display AI Loader
         const aiMsgDiv = this.appendMessage('ai', '...');
+
         try {
-            const response = await this.ai.generateResponse(processedText);
-            aiMsgDiv.innerText = ""; // Clear loader
-            aiMsgDiv.innerHTML = this.parseMarkdown(response);
+            // Using streaming response for better control
+            await this.ai.generateResponse(text, (currentFullText) => {
+                // Update AI content as it comes in
+                aiMsgDiv.innerHTML = this.parseMarkdown(currentFullText);
+                this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+            });
         } catch (error) {
             aiMsgDiv.innerText = "오류 발생: " + error.message;
         } finally {
-            // 5. Release Lock
+            // UNLOCK UI
             this.isSending = false;
-            this.updateButtonStates();
+            this.btnSend.disabled = !this.chatInput.value.trim();
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
     }
@@ -157,6 +143,9 @@ class App {
         return msgDiv;
     }
 
+    /**
+     * UTF-8 Safe Markdown Parser
+     */
     parseMarkdown(text) {
         if (!text) return "";
         let html = text
@@ -169,14 +158,9 @@ class App {
         return html.replace(/\n/g, '<br>');
     }
 
-    updateOnlineStatus(isOnline) {
-        if (isOnline) {
-            this.statusBadge.innerText = '🟢 온라인';
-            this.statusBadge.className = 'badge-online';
-        } else {
-            this.statusBadge.innerText = '🔴 오프라인';
-            this.statusBadge.className = 'badge-offline';
-        }
+    updateStatus(isOnline) {
+        this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
+        this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
     }
 
     async syncNotion() {
@@ -184,41 +168,29 @@ class App {
         const pageId = document.getElementById('notion-page-id').value;
 
         if (!apiKey || !pageId) {
-            alert('Notion API Key와 Page ID를 입력해주세요.');
+            alert('필수 입력 사항을 확인하세요.');
             return;
         }
 
-        this.btnSync.innerText = '동기화 중...';
         this.btnSync.disabled = true;
+        this.btnSync.innerText = '동기화 중...';
 
         try {
-            const data = await this.fetchNotionData(apiKey, pageId);
+            // Simulate Notion Fetch (In production, use a CORS Proxy or Serverless Function)
+            const data = [
+                { id: '1', content: '응급 위기 개입: 즉시 119 신고 및 안전 확보.' },
+                { id: '2', content: '개인정보 보호: 주민번호 및 민감정보 비식별화.' }
+            ];
             await this.ai.updateKnowledgeBase(data);
-            alert('매뉴얼 동기화가 완료되었습니다.');
+            alert('매뉴얼 동기화 성공!');
         } catch (error) {
-            alert('동기화 실패: ' + error.message);
+            alert('오류 발생: ' + error.message);
         } finally {
-            this.btnSync.innerText = '🔄 매뉴얼 동기화';
             this.btnSync.disabled = false;
+            this.btnSync.innerText = '🔄 매뉴얼 동기화';
         }
     }
-
-    async fetchNotionData(apiKey, pageId) {
-        // Simulation of fetching (Browser requires proxy for CORS)
-        return [
-            { id: '1', content: '응급 노인 복지 매뉴얼: 위급 상황 시 119 신고' },
-            { id: '2', content: '개인정보 보호: 비식별화 처리 필수' }
-        ];
-    }
 }
 
-// Single instance initialization
+// Global initialization
 new App();
-
-// Service Worker (Optional but recommended for Full PWA)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-            .catch(err => console.warn('Offline mode setup skipped or failed:', err));
-    });
-}
