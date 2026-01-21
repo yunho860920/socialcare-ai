@@ -53,6 +53,9 @@ export class AIEngine {
             store.add(item);
         }
         this.knowledgeBase = data;
+
+        // [SUCCESS LOG] Added as requested by user
+        console.log(`[SUCCESS] Notion Data Loaded:`, data);
     }
 
     /**
