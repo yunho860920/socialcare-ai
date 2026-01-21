@@ -1,15 +1,22 @@
+/**
+ * @file app.js
+ * @description Main application controller for SocialCare AI Chatbot.
+ * Handles UI, Privacy filtering, and event coordination.
+ * Enforces UTF-8 encoding and robust event handling to prevent duplicate messages (IME).
+ */
+
 import { AIEngine } from './ai-engine.js';
 
 /**
- * PII Filter: Masks Resident Registration Numbers, Phone Numbers.
- * @param {string} text 
- * @returns {string}
+ * PII Filter: Masks Resident Registration Numbers and Phone Numbers.
+ * Ensures data stays private on the local machine.
  */
 function maskPII(text) {
+    if (!text) return "";
     let masked = text;
-    // Resident Registration Number (RRN): 000000-0000000
+    // Resident Registration Number (RRN)
     masked = masked.replace(/\d{6}-\d{7}/g, 'RRN_MASKED');
-    // Phone Number: 010-0000-0000 or 01000000000
+    // Phone Number (Mobile/Fixed)
     masked = masked.replace(/01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g, 'PHONE_MASKED');
     return masked;
 }
@@ -17,13 +24,24 @@ function maskPII(text) {
 class App {
     constructor() {
         this.ai = new AIEngine();
-        this.isSending = false; // Flag to prevent multiple transmission
-        this.initUI();
-        this.bindEvents();
-        this.checkOnlineStatus();
+        this.isSending = false;
+
+        // Wait for DOM to be fully ready before initializing UI
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            this.init();
+        }
     }
 
-    initUI() {
+    init() {
+        this.initElements();
+        this.bindEvents();
+        this.updateOnlineStatus(navigator.onLine);
+        this.initializeAI();
+    }
+
+    initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
         this.btnSend = document.getElementById('btn-send');
@@ -35,43 +53,40 @@ class App {
         this.btnSettings = document.getElementById('btn-settings');
         this.btnCloseSettings = document.getElementById('btn-close-settings');
         this.btnSync = document.getElementById('btn-sync-notion');
+    }
+
+    bindEvents() {
+        // Use addEventListener with a single execution mindset
+        this.btnSend.addEventListener('click', () => this.handleSendMessage());
+
+        this.chatInput.addEventListener('keydown', (e) => {
+            // CRITICAL: Prevent duplicate execution during Korean IME composition
+            if (e.isComposing || e.keyCode === 229) return;
+
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.handleSendMessage();
+            }
+        });
 
         // Dynamic height for textarea
         this.chatInput.addEventListener('input', () => {
             this.chatInput.style.height = 'auto';
             this.chatInput.style.height = (this.chatInput.scrollHeight) + 'px';
-            this.updateSendButtonState();
+            this.updateButtonStates();
         });
+
+        this.btnSettings.addEventListener('click', () => this.modalSettings.classList.remove('hidden'));
+        this.btnCloseSettings.addEventListener('click', () => this.modalSettings.classList.add('hidden'));
+        this.btnSync.addEventListener('click', () => this.syncNotion());
+
+        window.addEventListener('online', () => this.updateOnlineStatus(true));
+        window.addEventListener('offline', () => this.updateOnlineStatus(false));
     }
 
-    updateSendButtonState() {
-        const hasText = this.chatInput.value.trim() !== '';
-        this.btnSend.disabled = !hasText || this.isSending;
-    }
-
-    bindEvents() {
-        // Remove existing listeners if any (though usually not necessary in this structure)
-        this.btnSend.onclick = () => this.sendMessage();
-
-        this.chatInput.onkeydown = (e) => {
-            // Check isComposing to prevent double triggering during Korean IME completion
-            if (e.isComposing || e.keyCode === 229) return;
-
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        };
-
-        this.btnSettings.onclick = () => this.modalSettings.classList.remove('hidden');
-        this.btnCloseSettings.onclick = () => this.modalSettings.classList.add('hidden');
-        this.btnSync.onclick = () => this.syncNotion();
-
-        window.ononline = () => this.updateOnlineStatus(true);
-        window.onoffline = () => this.updateOnlineStatus(false);
-
-        // Initialize AI
-        this.initializeAI();
+    updateButtonStates() {
+        const hasContent = this.chatInput.value.trim().length > 0;
+        this.btnSend.disabled = !hasContent || this.isSending;
     }
 
     async initializeAI() {
@@ -90,60 +105,41 @@ class App {
             });
         } catch (error) {
             console.error('AI Init failed:', error);
-            this.loadingText.innerText = 'AI 로드 실패: WebGPU 지원을 확인해주세요.';
+            this.loadingText.innerText = 'AI 로드 실패: WebGPU 또는 네트워크 상태를 확인하세요.';
             this.loadingText.style.color = '#ef4444';
         }
     }
 
-    async sendMessage() {
+    async handleSendMessage() {
+        // 1. Guard against duplicate calls or empty input
         if (this.isSending) return;
+        const text = this.chatInput.value.trim();
+        if (!text) return;
 
-        const rawText = this.chatInput.value.trim();
-        if (!rawText) return;
-
-        // Start sending state
+        // 2. Immediate State Lock & UI Clear
         this.isSending = true;
-        this.updateSendButtonState();
-
-        // Mask PII before anything else
-        const processedText = maskPII(rawText);
-
-        // Clear input immediately
-        this.chatInput.value = '';
+        this.chatInput.value = "";
         this.chatInput.style.height = 'auto';
+        this.updateButtonStates();
 
+        // 3. Process & Display User Message
+        const processedText = maskPII(text);
         this.appendMessage('user', processedText);
 
-        // AI Response placeholder
+        // 4. Generate AI Response
         const aiMsgDiv = this.appendMessage('ai', '...');
-
         try {
             const response = await this.ai.generateResponse(processedText);
-            aiMsgDiv.innerText = ''; // Clear placeholder
+            aiMsgDiv.innerText = ""; // Clear loader
             aiMsgDiv.innerHTML = this.parseMarkdown(response);
         } catch (error) {
-            aiMsgDiv.innerText = '오류가 발생했습니다: ' + error.message;
+            aiMsgDiv.innerText = "오류 발생: " + error.message;
         } finally {
-            // End sending state
+            // 5. Release Lock
             this.isSending = false;
-            this.updateSendButtonState();
+            this.updateButtonStates();
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
-    }
-
-    /**
-     * Simple parser for bold (**text**) and bullet points (- item)
-     */
-    parseMarkdown(text) {
-        let html = text
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
-            .replace(/^-\s(.*)$/gm, '<li>$1</li>'); // Lists
-
-        if (html.includes('<li>')) {
-            html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-        }
-
-        return html.replace(/\n/g, '<br>');
     }
 
     appendMessage(role, text) {
@@ -161,8 +157,16 @@ class App {
         return msgDiv;
     }
 
-    checkOnlineStatus() {
-        this.updateOnlineStatus(navigator.onLine);
+    parseMarkdown(text) {
+        if (!text) return "";
+        let html = text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/^-\s(.*)$/gm, '<li>$1</li>');
+
+        if (html.includes('<li>')) {
+            html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+        }
+        return html.replace(/\n/g, '<br>');
     }
 
     updateOnlineStatus(isOnline) {
@@ -190,7 +194,7 @@ class App {
         try {
             const data = await this.fetchNotionData(apiKey, pageId);
             await this.ai.updateKnowledgeBase(data);
-            alert('매뉴얼이 성공적으로 동기화되었습니다.');
+            alert('매뉴얼 동기화가 완료되었습니다.');
         } catch (error) {
             alert('동기화 실패: ' + error.message);
         } finally {
@@ -200,21 +204,21 @@ class App {
     }
 
     async fetchNotionData(apiKey, pageId) {
+        // Simulation of fetching (Browser requires proxy for CORS)
         return [
-            { id: '1', content: '응급 노인 복지 매뉴얼: 위급 상황 발생 시 119에 즉시 신고하고 기관장에 보고한다.' },
-            { id: '2', content: '개인정보 보호 원칙: 모든 상담 내역은 비식별화하여 기록하며 외부 유출을 엄격히 금지한다.' }
+            { id: '1', content: '응급 노인 복지 매뉴얼: 위급 상황 시 119 신고' },
+            { id: '2', content: '개인정보 보호: 비식별화 처리 필수' }
         ];
     }
 }
 
-// Initializing the app
+// Single instance initialization
 new App();
 
-// Service Worker Registration
+// Service Worker (Optional but recommended for Full PWA)
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SW Registered', reg))
-            .catch(err => console.error('SW Registration failing', err));
+            .catch(err => console.warn('Offline mode setup skipped or failed:', err));
     });
 }
