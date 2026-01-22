@@ -1,5 +1,5 @@
-// 👇 버전을 REBOOT 로 변경 (캐시 완전 무시)
-import { AIEngine } from './ai-engine.js?v=REBOOT';
+// 👇 버전을 safe_mode 로 변경!
+import { AIEngine } from './ai-engine.js?v=safe_mode';
 
 class App {
     constructor() {
@@ -13,18 +13,16 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [정밀 해결] 저장소 키를 바꿔서, 과거의 차단된 키 기록을 강제로 버립니다.
-        const STORAGE_ID = 'GEMINI_API_KEY_REBOOT_V1'; 
-        let savedKey = localStorage.getItem(STORAGE_ID);
+        // 키 저장소 이름을 바꿔서 새로 입력받게 합니다.
+        const STORAGE_KEY = 'gemini_safe_key_v1'; 
+        let savedKey = localStorage.getItem(STORAGE_KEY);
         
-        // 키가 없으면 무조건 물어봅니다.
         if (!savedKey) {
-            savedKey = prompt("📢 [시스템 초기화] 구글 AI Studio에서 발급받은 '새 API 키'를 입력하세요.\n(주의: 절대 코드 파일 안에 키를 적지 마세요!)");
-            
-            if (savedKey && savedKey.trim().length > 20) {
-                localStorage.setItem(STORAGE_ID, savedKey.trim());
+            savedKey = prompt("🔑 [안전 모드] 구글 AI Studio에서 받은 '새 API 키'를 입력하세요:");
+            if (savedKey && savedKey.trim().length > 10) {
+                localStorage.setItem(STORAGE_KEY, savedKey.trim());
             } else {
-                alert("API 키가 없으면 작동하지 않습니다. F5를 눌러 다시 시도하세요.");
+                alert("키가 없으면 작동하지 않습니다. 새로고침 해주세요.");
                 return;
             }
         }
@@ -65,11 +63,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `시스템 재설정 중... (${progress}%)`;
+                this.loadingText.innerText = `안전 모드 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '시스템이 초기화되었습니다. manual.txt 내용을 질문해주세요.');
+                        this.appendMessage('ai', 'Gemini Pro(안전 모드)가 준비되었습니다. 이제 질문해 주세요.');
                     }, 500);
                 }
             });
@@ -83,11 +81,18 @@ class App {
         this.isSending = true;
         this.chatInput.value = "";
         this.appendMessage('user', text);
-        const aiMsg = this.appendMessage('ai', '분석 중...');
+        
+        // 메시지 박스를 미리 만들고
+        const aiMsg = this.appendMessage('ai', '생각 중...');
+        
         try {
+            // 결과가 오면 텍스트를 교체합니다.
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
-        } catch (e) { aiMsg.innerText = "오류: " + e.message; }
-        finally { this.isSending = false; }
+        } catch (e) { 
+            aiMsg.innerText = "오류: " + e.message; 
+        } finally { 
+            this.isSending = false; 
+        }
     }
 
     appendMessage(role, text) {
