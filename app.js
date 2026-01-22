@@ -1,9 +1,10 @@
-// 👇 버전을 sdk_version 으로 변경!
-import { AIEngine } from './ai-engine.js?v=sdk_version';
+// 👇 버전을 online_fix 로 변경
+import { AIEngine } from './ai-engine.js?v=online_fix';
 
 class App {
     constructor() {
         this.isSending = false;
+        // 페이지 로드 즉시 실행
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
         } else {
@@ -15,19 +16,18 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        const STORAGE_KEY = 'gemini_sdk_key_final'; 
+        const STORAGE_KEY = 'gemini_sdk_direct_key'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
-        // 키가 없으면 입력창 띄우기 (이전과 동일)
         if (!savedKey) {
             setTimeout(() => {
-                savedKey = prompt("🔑 [SDK 모드] 구글 API 키를 입력하세요:");
+                savedKey = prompt("🔑 [복구 모드] API 키를 입력해주세요:");
                 if (savedKey && savedKey.trim().length > 10) {
                     localStorage.setItem(STORAGE_KEY, savedKey.trim());
-                    this.ai = new AIEngine(savedKey);
-                    this.startAI();
+                    // 키 저장 후 페이지 새로고침 (확실한 로딩을 위해)
+                    location.reload(); 
                 } else {
-                    alert("키 입력이 필요합니다.");
+                    alert("키가 필요합니다.");
                 }
             }, 500);
         } else {
@@ -35,6 +35,7 @@ class App {
             this.startAI();
         }
 
+        // JS가 정상 로드되면 온라인으로 바뀝니다.
         this.updateOnlineStatus(true);
     }
 
@@ -76,21 +77,21 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `공식 SDK 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `라이브러리 로딩 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 구글 공식 도구(SDK)로 연결되었습니다. 이제 정말 끊기지 않습니다!');
+                        this.appendMessage('ai', '안녕하세요. 구글 SDK가 정상적으로 로드되었습니다. 이제 됩니다!');
                     }, 500);
                 }
             });
-        } catch (e) { this.loadingText.innerText = '초기화 실패'; }
+        } catch (e) { this.loadingText.innerText = '로딩 실패'; }
     }
 
     async handleSend() {
         if (this.isSending) return;
         const text = this.chatInput.value.trim();
-        if (!text) { alert("내용을 입력해주세요!"); return; }
+        if (!text) return;
 
         this.isSending = true;
         this.chatInput.value = "";
