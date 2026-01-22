@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>업무용 챗봇 (요약 모드)</title>
+    <title>업무용 챗봇</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -29,7 +29,7 @@
 <body>
 
 <div id="progress-container"><div id="progress-bar"></div></div>
-<header><div class="title">🤖 업무용 챗봇 (요약)</div></header>
+<header><div class="title">🤖 업무용 챗봇</div></header>
 
 <div id="chat-box"></div>
 
@@ -92,17 +92,18 @@
         const text = userInput.value.trim(); if (!text) return;
         addMessage("user", text); userInput.value = "";
         
-        // [수정 포인트] "짧게 요약해라"라는 지시를 명확하게 추가
+        // [원상복구] 아까 가장 잘 작동했던 '기본' 프롬프트
+        // 요약해라, 짧게해라 같은 지시를 빼야 1B 모델이 꼬이지 않습니다.
         const messages = [
             { 
                 role: "system", 
-                content: "너는 아동보호전문기관 사회복지사야. 아래 [매뉴얼]을 보고 질문에 답해줘. 답변은 핵심 내용만 요약해서 3~5줄 이내로 짧게 작성해." 
+                content: "너는 아동보호전문기관 사회복지사야. 아래 [매뉴얼] 내용을 보고 질문에 대해 한국어로 정확하게 답변해." 
             },
             { 
                 role: "user", 
                 content: `
 ### 매뉴얼 내용 ###
-${manualContent.substring(0, 25000)}
+${manualContent.substring(0, 30000)}
 
 ### 질문 ###
 ${text}
@@ -114,7 +115,7 @@ ${text}
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
                 messages: messages,
-                temperature: 0.1, // 안정적인 답변을 위해 0.1 유지
+                temperature: 0.1, // 가장 안정적인 설정
                 stream: true
             });
 
