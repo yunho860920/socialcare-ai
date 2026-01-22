@@ -3,41 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 오뚜기 버전</title>
+    <title>SocialCare AI - 매뉴얼 퍼스트</title>
     <style>
-        /* 깔끔한 디자인 & 가독성 최적화 */
-        body { font-family: 'Pretendard', -apple-system, sans-serif; background: #121212; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
-        
-        /* 헤더 */
+        /* 기본 스타일 */
+        body { font-family: 'Pretendard', sans-serif; background: #121212; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
         header { padding: 15px 20px; background: #1e1e1e; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         .title { font-weight: bold; font-size: 1.1rem; color: #fff; }
-        #status-badge { font-size: 0.8rem; padding: 4px 10px; border-radius: 12px; background: #333; color: #aaa; transition: 0.3s; }
-        #status-badge.ok { background: #1b5e20; color: #a5d6a7; border: 1px solid #2e7d32; }
+        
+        /* 상태 배지 스타일 */
+        #status-badge { font-size: 0.85rem; padding: 5px 12px; border-radius: 15px; background: #333; color: #aaa; border: 1px solid #444; transition: 0.3s; }
+        #status-badge.ok { background: #1b5e20; color: #a5d6a7; border-color: #2e7d32; }
+        #status-badge.error { background: #b71c1c; color: #ffcdd2; border-color: #c62828; animation: blink 2s infinite; }
+
+        @keyframes blink { 50% { opacity: 0.7; } }
 
         /* 채팅창 */
-        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .message { padding: 15px 20px; border-radius: 18px; max-width: 85%; word-break: break-word; }
+        .ai { background: #2d2d2d; border-left: 4px solid #4facfe; }
+        .user { background: #0052cc; color: white; align-self: flex-end; }
+        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.9rem; width: auto; }
         
-        /* 메시지 풍선 */
-        .message { padding: 15px 20px; border-radius: 18px; max-width: 85%; word-break: break-word; position: relative; }
-        .ai { background: #2d2d2d; color: #ececec; align-self: flex-start; border-bottom-left-radius: 4px; border-left: 4px solid #4facfe; }
-        .user { background: #0052cc; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
-        .system { background: #263238; color: #b0bec5; font-size: 0.85rem; text-align: center; align-self: center; width: auto; border-radius: 20px; padding: 5px 15px; }
-        .error { background: #3d0000; color: #ff8a80; border: 1px solid #8a0000; }
-
-        /* 📝 마크다운 스타일링 (글씨 예쁘게) */
-        .ai strong { color: #4facfe; font-weight: 700; } /* 굵은 글씨 색상 */
-        .ai h1, .ai h2, .ai h3 { margin: 10px 0 5px 0; color: #fff; font-size: 1.1em; }
-        .ai ul, .ai ol { margin: 5px 0; padding-left: 20px; }
-        .ai li { margin-bottom: 4px; }
-        .ai p { margin: 0 0 10px 0; }
-        .ai p:last-child { margin: 0; }
+        /* 마크다운 스타일 */
+        .ai strong { color: #4facfe; }
+        .ai li { margin-bottom: 5px; }
 
         /* 입력창 */
         #input-area { padding: 20px; background: #1e1e1e; border-top: 1px solid #333; display: flex; gap: 10px; }
         input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: #2d2d2d; color: white; font-size: 16px; outline: none; }
-        input:focus { border-color: #4facfe; background: #333; }
-        button { padding: 0 25px; border-radius: 10px; border: none; background: #0052cc; color: white; font-weight: bold; cursor: pointer; font-size: 1rem; }
-        button:hover { background: #0065ff; }
+        button { padding: 0 25px; border-radius: 10px; border: none; background: #0052cc; color: white; font-weight: bold; cursor: pointer; }
         button:disabled { background: #444; cursor: not-allowed; }
     </style>
 </head>
@@ -45,45 +39,16 @@
 
 <header>
     <span class="title">🤖 상담 매뉴얼 비서</span>
-    <span id="status-badge">📂 매뉴얼 로딩 중...</span>
+    <span id="status-badge">⏳ 초기화 중...</span>
 </header>
 
 <div id="chat-box">
-    <div class="message system">
-        💡 <b>팁:</b> 질문을 구체적으로 하시면 매뉴얼 내용을 더 잘 찾아냅니다.
-    </div>
-    <div class="message ai">
-        안녕하세요! <b>매뉴얼(manual.txt)</b> 내용을 완벽히 숙지하고 대기 중입니다.<br>
-        궁금한 점을 물어보시면 <b>매뉴얼에 있는 내용 그대로</b> 답변해 드릴게요.
+    <div class="message system" id="intro-msg">
+        잠시만 기다려주세요. 매뉴얼 파일을 찾고 있습니다...
     </div>
 </div>
 
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="질문을 입력하세요..." autofocus>
-    <button id="btn-send">전송</button>
+    <input type="text" id="user-input" placeholder="매뉴얼 로딩 후 입력 가능합니다" disabled>
+    <button id="btn-send" disabled>전송</button>
 </div>
-
-<script type="module">
-    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
-
-    // UI 요소
-    const chatBox = document.getElementById('chat-box');
-    const input = document.getElementById('user-input');
-    const btn = document.getElementById('btn-send');
-    const statusBadge = document.getElementById('status-badge');
-
-    // 키 관리
-    const STORAGE_KEY = "SOCIAL_CARE_KEY_V2";
-    let apiKey = localStorage.getItem(STORAGE_KEY);
-    let manualContent = "";
-
-    // 1. 매뉴얼 로드 (시작 시 자동 실행)
-    async function loadManual() {
-        try {
-            const res = await fetch('./manual.txt');
-            if (res.ok) {
-                manualContent = await res.text();
-                statusBadge.innerText = "✅ 매뉴얼 로드됨";
-                statusBadge.classList.add("ok");
-                console.log("매뉴얼 로딩 완료");
-            }
