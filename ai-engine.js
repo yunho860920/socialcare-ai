@@ -1,9 +1,11 @@
 /**
- * ai-engine.js - gemini-pro 적용 버전
+ * ai-engine.js - 안정화 v1 버전 + API 키 공백 자동 제거
  */
 export class AIEngine {
     constructor() {
-        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto"; // [중요] 키가 들어있는지 꼭 확인!
+        // [중요] 키를 넣을 때 따옴표 안에 공백이 없도록 주의하세요!
+        // 혹시 공백이 있어도 .trim() 함수가 자동으로 지워줍니다.
+        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); 
         this.localManualContent = "";
     }
 
@@ -25,10 +27,11 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // [핵심] 404 안 뜨는 가장 안전한 주소 조합 (gemini-pro + v1beta)
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.apiKey}`;
+        // [핵심 변경 1] v1beta -> v1 (가장 안정적인 정식 버전)
+        // [핵심 변경 2] 모델명 -> gemini-1.5-flash (무료 티어 표준 모델)
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
 
-        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
+        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 한국어로 답변하라.
         
 [매뉴얼]
 ${this.localManualContent || "내용 없음"}
@@ -44,14 +47,23 @@ ${this.localManualContent || "내용 없음"}
 
             const data = await response.json();
             
-            if (data.error) throw new Error(data.error.message);
-            
-            const text = data.candidates[0].content.parts[0].text;
-            if (onChunk) onChunk(text);
-            return text;
+            // 만약 에러가 나면, 구체적인 이유를 화면에 보여줍니다.
+            if (!response.ok) {
+                const errorMsg = data.error ? data.error.message : "알 수 없는 오류";
+                throw new Error(`구글 서버 거절: ${errorMsg}`);
+            }
+
+            if (data.candidates && data.candidates.length > 0) {
+                const text = data.candidates[0].content.parts[0].text;
+                if (onChunk) onChunk(text);
+                return text;
+            } else {
+                return "답변을 생성하지 못했습니다. (내용 필터링됨)";
+            }
 
         } catch (error) {
-            return "오류: " + error.message;
+            // 이 에러 메시지가 채팅창에 그대로 뜹니다.
+            return "⛔ 연결 실패: " + error.message; 
         }
     }
 }
