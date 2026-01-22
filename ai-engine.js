@@ -1,9 +1,9 @@
 /**
- * ai-engine.js - Gemini 2.0 Flash 모델 적용 (최종 해결본)
+ * ai-engine.js - 무료 사용 가능한 gemini-2.0-flash-exp 모델 적용
  */
 export class AIEngine {
     constructor() {
-        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); // 여기에 API 키를 넣으세요
+        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); // API 키 입력
         this.localManualContent = "";
     }
 
@@ -25,8 +25,8 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // [핵심] 선생님 키로 사용 가능한 'gemini-2.0-flash' 모델로 확정!
-        const modelName = "gemini-2.0-flash";
+        // [핵심] 무료 티어에서 작동하는 'gemini-2.0-flash-exp' 모델 사용
+        const modelName = "gemini-2.0-flash-exp";
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
 
         const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
@@ -45,8 +45,12 @@ ${this.localManualContent || "내용 없음"}
 
             const data = await response.json();
             
+            // 에러 처리
             if (!response.ok) {
-                // 만약 또 에러가 나면 화면에 그대로 보여줍니다.
+                // 429 에러(용량 초과)가 뜨면 잠시 기다리라는 안내 메시지 출력
+                if (response.status === 429) {
+                    return "⛔ (사용량 제한) 잠시 후 다시 질문해주세요. 무료 버전은 분당 요청 횟수 제한이 있습니다.";
+                }
                 const errorMsg = data.error ? data.error.message : "알 수 없는 오류";
                 throw new Error(errorMsg);
             }
