@@ -1,5 +1,5 @@
-// 👇 버전을 secure_fix 로 변경!
-import { AIEngine } from './ai-engine.js?v=secure_fix';
+// 👇 버전을 final_stable 로 변경!
+import { AIEngine } from './ai-engine.js?v=final_stable';
 
 class App {
     constructor() {
@@ -13,32 +13,26 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [핵심 수정] 저장소 이름을 바꿨습니다. (이전 키 무시)
-        // 이제 브라우저는 저장된 키가 없다고 판단하고 무조건 물어봅니다.
-        const STORAGE_KEY = 'gemini_key_new_v1'; 
+        // [변경] 저장소 이름을 바꿔서 키를 다시 물어보게 만듭니다.
+        const STORAGE_KEY = 'gemini_key_stable_v1'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
-        // 키가 없으면 입력창을 띄웁니다.
         if (!savedKey) {
-            // 안내 문구를 더 명확하게 수정
-            savedKey = prompt("📢 [필수] 구글 AI Studio에서 발급받은 '새 API 키'를 붙여넣어 주세요:\n(이 키는 서버에 전송되지 않고 선생님 PC에만 저장됩니다)");
-            
+            savedKey = prompt("🔑 [최종 단계] API 키를 입력해주세요:\n(이전에 쓰던 키를 그대로 넣으셔도 됩니다)");
             if (savedKey && savedKey.trim().length > 10) {
-                // 입력받은 키를 저장합니다
                 localStorage.setItem(STORAGE_KEY, savedKey.trim());
             } else {
-                alert("⚠️ 키가 입력되지 않았습니다. 화면을 새로고침(F5)하여 다시 입력해주세요.");
+                alert("키를 입력해야 시작할 수 있습니다. 새로고침 해주세요.");
                 return;
             }
         }
 
-        // 입력받은 키로 AI 엔진을 시작합니다.
         this.ai = new AIEngine(savedKey);
-
         this.updateOnlineStatus(true);
         this.startAI();
     }
-
+    
+    // ... (이 아래 코드는 기존과 완벽히 동일합니다) ...
     initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
@@ -72,11 +66,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `AI 비서 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `표준 모델 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 이제 준비되었습니다. 질문을 입력해주세요!');
+                        this.appendMessage('ai', '안녕하세요. 1.5 Flash 표준 모델이 준비되었습니다. 이제 정말 끊기지 않을 거예요!');
                     }, 500);
                 }
             });
