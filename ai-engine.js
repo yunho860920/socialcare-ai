@@ -1,10 +1,11 @@
 /**
- * ai-engine.js - 새 API 키 + 무료 모델(Exp) 최종 적용
+ * ai-engine.js - 키를 코드에 저장하지 않는 보안 버전
  */
 export class AIEngine {
-    constructor() {
-        // 👇 [중요] 방금 새로 발급받은 키를 여기에 넣으세요!
-        this.apiKey = "AIzaSyAS82j1V-PTYcgYSnqNkP79OYqzzvaig7M".trim(); 
+    // [중요] 이제 여기에 API 키를 적지 않습니다!
+    // app.js에서 넘겨주는 키를 받아서 씁니다.
+    constructor(apiKey) {
+        this.apiKey = apiKey; 
         this.localManualContent = "";
     }
 
@@ -23,7 +24,7 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // [정답] 무료로 쓸 수 있는 'gemini-2.0-flash-exp' 모델 사용
+        // 무료 사용 가능한 실험용 모델
         const modelName = "gemini-2.0-flash-exp";
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
 
@@ -41,11 +42,9 @@ export class AIEngine {
             const data = await response.json();
 
             if (!response.ok) {
-                const errorMsg = data.error ? data.error.message : "알 수 없는 오류";
-                // 키 유출 에러가 또 뜨면 사용자에게 알려줌
-                if (errorMsg.includes("leaked")) {
-                    return "⛔ (보안 경고) 새 API 키가 또 차단되었습니다. 깃허브에 올릴 때 주의가 필요합니다.";
-                }
+                // 에러 발생 시 상세 내용 출력
+                let errorMsg = data.error ? data.error.message : "알 수 없는 오류";
+                if (response.status === 429) errorMsg = "⛔ (사용량 제한) 잠시 후 다시 시도해주세요.";
                 throw new Error(errorMsg);
             }
 
