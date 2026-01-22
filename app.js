@@ -1,5 +1,5 @@
-// 👇 버전을 final_stable 로 변경!
-import { AIEngine } from './ai-engine.js?v=final_stable';
+// 👇 버전을 v_perfect 로 변경하여 캐시를 완전히 새로고침합니다.
+import { AIEngine } from './ai-engine.js?v=v_perfect';
 
 class App {
     constructor() {
@@ -13,16 +13,16 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [변경] 저장소 이름을 바꿔서 키를 다시 물어보게 만듭니다.
-        const STORAGE_KEY = 'gemini_key_stable_v1'; 
-        let savedKey = localStorage.getItem(STORAGE_KEY);
+        // [핵심] 완전히 새로운 저장소 이름 사용 (이전 에러 기록 삭제)
+        const FINAL_STORAGE_KEY = 'gemini_final_key_v100'; 
+        let savedKey = localStorage.getItem(FINAL_STORAGE_KEY);
         
         if (!savedKey) {
-            savedKey = prompt("🔑 [최종 단계] API 키를 입력해주세요:\n(이전에 쓰던 키를 그대로 넣으셔도 됩니다)");
+            savedKey = prompt("📢 [마지막 단계] 구글 AI Studio에서 발급받은 '새 API 키'를 입력해주세요.\n(이 키는 선생님 브라우저에만 안전하게 저장됩니다)");
             if (savedKey && savedKey.trim().length > 10) {
-                localStorage.setItem(STORAGE_KEY, savedKey.trim());
+                localStorage.setItem(FINAL_STORAGE_KEY, savedKey.trim());
             } else {
-                alert("키를 입력해야 시작할 수 있습니다. 새로고침 해주세요.");
+                alert("키를 입력해야 시작할 수 있습니다. 새로고침(F5) 해주세요.");
                 return;
             }
         }
@@ -31,8 +31,7 @@ class App {
         this.updateOnlineStatus(true);
         this.startAI();
     }
-    
-    // ... (이 아래 코드는 기존과 완벽히 동일합니다) ...
+
     initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
@@ -44,8 +43,6 @@ class App {
     }
 
     bindEvents() {
-        window.addEventListener('online', () => this.updateOnlineStatus(true));
-        window.addEventListener('offline', () => this.updateOnlineStatus(false));
         this.btnSend.onclick = (e) => { e.preventDefault(); this.handleSend(); };
         this.chatInput.onkeydown = (e) => {
             if (e.isComposing || e.keyCode === 229) return;
@@ -54,10 +51,10 @@ class App {
     }
 
     updateOnlineStatus(isOnline) {
-        if (!this.statusBadge) return;
-        this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
-        this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
-        this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
+        if (this.statusBadge) {
+            this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
+            this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
+        }
     }
 
     async startAI() {
@@ -66,11 +63,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `표준 모델 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `최종 세팅 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 1.5 Flash 표준 모델이 준비되었습니다. 이제 정말 끊기지 않을 거예요!');
+                        this.appendMessage('ai', '안녕하세요, 연호 선생님! 이제 모든 설정이 완료되었습니다. manual.txt를 바탕으로 무엇이든 물어보세요.');
                     }, 500);
                 }
             });
@@ -84,7 +81,7 @@ class App {
         this.isSending = true;
         this.chatInput.value = "";
         this.appendMessage('user', text);
-        const aiMsg = this.appendMessage('ai', '...');
+        const aiMsg = this.appendMessage('ai', '지침 확인 중...');
         try {
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
         } catch (e) { aiMsg.innerText = "오류: " + e.message; }
@@ -95,8 +92,8 @@ class App {
         const div = document.createElement('div');
         div.className = `message ${role}`;
         div.innerText = text;
-        document.getElementById('chat-messages').appendChild(div);
-        document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+        this.chatMessages.appendChild(div);
+        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         return div;
     }
 }
