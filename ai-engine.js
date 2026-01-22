@@ -1,23 +1,39 @@
 import * as webllm from "@mlc-ai/web-llm";
 
 /**
- * AI Engine: Optimized for Korean-only, low-latency, and Precise RAG.
+ * AI Engine: 사무실 PC 고사양 모델(8B) 및 로컬 파일/노션 통합 참조 모드
  */
 export class AIEngine {
     constructor() {
         this.engine = null;
-        this.modelName = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+        // 사무실 PC 성능을 활용하기 위한 8B 모델로 업그레이드
+        this.modelName = "Llama-3.1-8B-Instruct-q4f16_1-MLC"; 
         this.knowledgeBase = [];
         this.db = null;
+        this.localManualContent = ""; // manual.txt 내용을 담을 변수
     }
 
     async initialize(onProgress) {
         this.db = await this.initDB();
         await this.loadLocalKnowledge();
+        await this.fetchManualFile(); // 로컬 텍스트 파일 추가 로드
 
         this.engine = await webllm.CreateMLCEngine(this.modelName, {
             initProgressCallback: onProgress,
         });
+    }
+
+    // 로컬 manual.txt 파일을 읽어오는 함수 추가
+    async fetchManualFile() {
+        try {
+            const response = await fetch('./manual.txt');
+            if (response.ok) {
+                this.localManualContent = await response.text();
+                console.log("[FILE_CHECK] manual.txt 로드 성공");
+            }
+        } catch (e) {
+            console.log("[FILE_CHECK] manual.txt를 찾을 수 없습니다.");
+        }
     }
 
     async initDB() {
@@ -41,8 +57,7 @@ export class AIEngine {
         request.onsuccess = () => {
             this.knowledgeBase = request.result;
             if (this.knowledgeBase.length > 0) {
-                const preview = this.knowledgeBase[0].content.substring(0, 100);
-                console.log(`[NOTION_CHECK] First entry preview: ${preview}`);
+                console.log(`[NOTION_CHECK] 노션 데이터 ${this.knowledgeBase.length}개 로드됨`);
             }
         };
     }
@@ -55,40 +70,30 @@ export class AIEngine {
             store.add(item);
         }
         this.knowledgeBase = data;
-
-        // Log the first 100 chars as requested
-        if (data.length > 0) {
-            const logContent = data[0].content.substring(0, 100);
-            console.log(`[NOTION_CHECK] Data Received: ${logContent}`);
-        }
+        console.log(`[NOTION_CHECK] 새 데이터 동기화 완료: ${data.length}건`);
     }
 
     /**
-     * Mini-Search RAG: Selects only top 3-5 relevant sentences to save context and prevent hallucination.
+     * RAG 검색: 노션 데이터와 로컬 파일 데이터를 통합 검색
      */
     retrieveContext(query) {
-        if (this.knowledgeBase.length === 0) return null;
+        let combinedText = this.localManualContent + "\n";
+        this.knowledgeBase.forEach(item => { combinedText += item.content + "\n"; });
+
+        if (!combinedText.trim()) return null;
 
         const keywords = query.split(/\s+/).filter(w => w.length > 1);
+        const sentences = combinedText.split(/[.!?\n]/).filter(s => s.trim().length > 5);
 
-        // Flatten all manual content into sentences
-        let allSentences = [];
-        this.knowledgeBase.forEach(item => {
-            const sentences = item.content.split(/[.!?\n]/).filter(s => s.trim().length > 5);
-            allSentences = allSentences.concat(sentences);
-        });
-
-        // Score sentences based on keyword overlap
-        const scored = allSentences.map(s => {
+        const scored = sentences.map(s => {
             let score = 0;
             keywords.forEach(k => { if (s.includes(k)) score++; });
             return { sentence: s.trim(), score };
         }).filter(item => item.score > 0);
 
-        // Sort by relevance and pick top 5
         const topSentences = scored
             .sort((a, b) => b.score - a.score)
-            .slice(0, 5)
+            .slice(0, 7) // 8B 모델은 더 긴 문맥을 읽을 수 있으므로 7개로 상향
             .map(item => item.sentence);
 
         return topSentences.length > 0 ? topSentences.join(". ") : null;
@@ -98,24 +103,19 @@ export class AIEngine {
         if (!this.engine) throw new Error("AI Engine not initialized");
 
         const manualContext = this.retrieveContext(userInput);
-
-        let contextSection = "";
-        if (manualContext) {
-            contextSection = `[노션 매뉴얼 데이터]\n${manualContext}`;
-        } else {
-            contextSection = "매뉴얼 데이터를 불러오지 못했습니다.";
-        }
-
-        const systemPrompt = `너는 아동보호전문기관(CPS)의 '연호 선생님'을 돕는 한국어 전용 AI 비서다.
-**영어, 베트남어, 한자를 절대 섞지 말고 표준 한국어만 사용하라.**
+        
+        // 8B 모델 성능에 최적화된 시스템 프롬프트
+        const systemPrompt = `너는 아동보호전문기관의 '연호 선생님'을 보좌하는 전문 AI 비서다.
+반드시 한국어로만 답변하고, 제공된 [매뉴얼 데이터]를 가장 우선적인 근거로 삼아라.
 
 **[응대 원칙]**
-1. 매뉴얼 데이터가 있다면 반드시 **"노션 매뉴얼 확인 결과:"**라고 답변을 시작하라.
-2. 매뉴얼 데이터가 없다면 **"매뉴얼 데이터를 불러오지 못했습니다."**라고 먼저 말한 뒤 아는 선에서 조언하라.
-3. 아동학대 대응 전문가로서 전문적이고 단호하면서도 친절한 한국어 문체를 유지하라.
-4. 환각 증세 없이, 오직 주어진 매뉴얼과 상식에 기반해 한국어로만 짧고 명확하게 답변하라.
+1. 답변 시작 시 반드시 **"[매뉴얼 기반 답변]"**이라고 머리말을 붙여라.
+2. 매뉴얼에 관련 내용이 있다면 정확한 수치나 절차를 인용하라.
+3. 매뉴얼에 없는 내용이라면 "매뉴얼 외 지식입니다:"라고 밝히고 답변하라.
+4. 절대 영어나 외국어를 혼용하지 말고 단호하고 신뢰감 있는 한국어 문체를 사용하라.
 
-${contextSection}
+[매뉴얼 데이터]
+${manualContext || "참조할 매뉴얼 내용이 없습니다."}
 `;
 
         const messages = [
@@ -125,8 +125,7 @@ ${contextSection}
 
         const chunks = await this.engine.chat.completions.create({
             messages,
-            temperature: 0.1, // Fixed for high determinism
-            repetition_penalty: 1.2,
+            temperature: 0.1, // 일관된 답변을 위해 낮게 설정
             stream: true
         });
 
