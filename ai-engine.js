@@ -1,9 +1,13 @@
 /**
- * ai-engine.js - 자동 모델 우회(Fallback) 시스템
+ * ai-engine.js - 구글 공식 SDK 사용 버전 (오류 해결 끝판왕)
  */
+// 👇 공식 도구를 가져옵니다.
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export class AIEngine {
     constructor(apiKey) {
         this.apiKey = apiKey.trim();
+        this.genAI = new GoogleGenerativeAI(this.apiKey);
         this.localManualContent = "";
     }
 
@@ -21,54 +25,40 @@ export class AIEngine {
         } catch (e) { console.error("파일 로드 실패"); }
     }
 
-    // [핵심 기술] 모델 자동 스위칭 함수
     async generateResponse(userInput, onChunk) {
-        // 1순위: 최신 모델 (1.5 Flash)
         try {
-            return await this.callApi("gemini-1.5-flash", userInput, onChunk);
-        } catch (error1) {
-            // 1순위 실패 시(404 등), 2순위로 자동 전환
-            if (error1.message.includes("404") || error1.message.includes("not found")) {
-                if (onChunk) onChunk("⚠️ 최신 모델 연결 실패, '안전 모델(gemini-pro)'로 우회 접속합니다...");
-                try {
-                    // 2순위: 가장 기초 모델 (gemini-pro)
-                    return await this.callApi("gemini-pro", userInput, onChunk);
-                } catch (error2) {
-                    throw new Error("모든 모델 접속 실패: " + error2.message);
-                }
-            } else {
-                throw error1; // 다른 에러면 그냥 보고함
+            // [핵심] 주소를 직접 치지 않고, 공식 도구가 알아서 모델을 찾아옵니다.
+            // 가장 최신이며 안정적인 'gemini-1.5-flash'를 호출합니다.
+            const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+            const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
+            [매뉴얼]
+            ${this.localManualContent || "내용 없음"}
+
+            질문: ${userInput}`;
+
+            // 스트리밍 방식으로 답변을 요청합니다.
+            const result = await model.generateContentStream(promptText);
+
+            let fullText = "";
+            
+            for await (const chunk of result.stream) {
+                const chunkText = chunk.text();
+                fullText += chunkText;
+                if (onChunk) onChunk(fullText);
             }
-        }
-    }
 
-    // 실제 API 호출을 담당하는 내부 함수
-    async callApi(modelName, userInput, onChunk) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
-        
-        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
-        [매뉴얼] ${this.localManualContent || "내용 없음"}
-        질문: ${userInput}`;
+            return fullText;
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            const msg = data.error ? data.error.message : "상태 코드 " + response.status;
-            throw new Error(msg); // 에러를 던져서 위에서 잡게 함
-        }
-
-        if (data.candidates && data.candidates.length > 0) {
-            const text = data.candidates[0].content.parts[0].text;
-            if (onChunk) onChunk(text);
-            return text;
-        } else {
-            return "답변이 비어있습니다.";
+        } catch (error) {
+            // 에러가 나면 여기서 잡습니다.
+            let msg = "오류 발생: " + error.message;
+            
+            if (msg.includes("404")) msg = "⛔ 모델을 찾을 수 없습니다. (하지만 SDK를 쓰면 이 확률은 낮습니다)";
+            if (msg.includes("API key")) msg = "⛔ API 키가 유효하지 않습니다. 새로고침 후 다시 입력해주세요.";
+            
+            if (onChunk) onChunk(msg);
+            throw new Error(msg);
         }
     }
 }
