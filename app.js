@@ -1,5 +1,5 @@
-// 👇 버전을 v_perfect 로 변경하여 캐시를 완전히 새로고침합니다.
-import { AIEngine } from './ai-engine.js?v=v_perfect';
+// 👇 버전을 v_final_one으로 변경하여 브라우저가 새 코드를 강제로 읽게 합니다.
+import { AIEngine } from './ai-engine.js?v=v_final_one';
 
 class App {
     constructor() {
@@ -13,14 +13,14 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [핵심] 완전히 새로운 저장소 이름 사용 (이전 에러 기록 삭제)
-        const FINAL_STORAGE_KEY = 'gemini_final_key_v100'; 
-        let savedKey = localStorage.getItem(FINAL_STORAGE_KEY);
+        // [핵심] 새로운 저장소 키를 사용하여 이전의 잘못된 키 기록을 무시합니다.
+        const STORAGE_KEY = 'gemini_absolute_final_v1'; 
+        let savedKey = localStorage.getItem(STORAGE_KEY);
         
         if (!savedKey) {
             savedKey = prompt("📢 [마지막 단계] 구글 AI Studio에서 발급받은 '새 API 키'를 입력해주세요.\n(이 키는 선생님 브라우저에만 안전하게 저장됩니다)");
             if (savedKey && savedKey.trim().length > 10) {
-                localStorage.setItem(FINAL_STORAGE_KEY, savedKey.trim());
+                localStorage.setItem(STORAGE_KEY, savedKey.trim());
             } else {
                 alert("키를 입력해야 시작할 수 있습니다. 새로고침(F5) 해주세요.");
                 return;
@@ -63,11 +63,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `최종 세팅 중... (${progress}%)`;
+                this.loadingText.innerText = `서버 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요, 연호 선생님! 이제 모든 설정이 완료되었습니다. manual.txt를 바탕으로 무엇이든 물어보세요.');
+                        this.appendMessage('ai', '반갑습니다, 연호 선생님! 모든 설정이 완료되었습니다. 이제 manual.txt 지침에 대해 질문해 주세요.');
                     }, 500);
                 }
             });
@@ -81,7 +81,7 @@ class App {
         this.isSending = true;
         this.chatInput.value = "";
         this.appendMessage('user', text);
-        const aiMsg = this.appendMessage('ai', '지침 확인 중...');
+        const aiMsg = this.appendMessage('ai', '매뉴얼 확인 중...');
         try {
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
         } catch (e) { aiMsg.innerText = "오류: " + e.message; }
