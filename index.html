@@ -3,37 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 통합 완성본</title>
+    <title>SocialCare AI - 매뉴얼 마스터</title>
     <style>
-        /* 깔끔한 다크모드 디자인 */
-        body { font-family: sans-serif; background: #121212; color: #fff; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        header { padding: 15px; background: #1e1e1e; border-bottom: 1px solid #333; text-align: center; font-weight: bold; }
-        #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .message { padding: 12px 18px; border-radius: 12px; max-width: 80%; line-height: 1.5; word-break: break-word; }
-        .ai { background: #2d2d2d; color: #e0e0e0; align-self: flex-start; border-left: 4px solid #4facfe; }
-        .user { background: #0052cc; color: white; align-self: flex-end; }
-        .error { background: #3d0000; color: #ff8a80; border: 1px solid #8a0000; text-align: center; width: 100%; box-sizing: border-box; }
+        /* 디자인: 깔끔한 다크 모드 + 가독성 강화 */
+        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
+        header { padding: 15px; background: #1e1e1e; border-bottom: 1px solid #333; text-align: center; font-weight: bold; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; padding-left: 20px; padding-right: 20px;}
         
-        /* 입력창 영역 */
+        /* 매뉴얼 상태 표시등 */
+        #manual-status { font-size: 0.8rem; padding: 5px 10px; border-radius: 12px; background: #333; color: #aaa; }
+        #manual-status.ok { background: #1b5e20; color: #a5d6a7; border: 1px solid #2e7d32; }
+        #manual-status.fail { background: #b71c1c; color: #ffcdd2; border: 1px solid #c62828; }
+
+        #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
+        
+        .message { padding: 15px 20px; border-radius: 16px; max-width: 85%; word-break: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .ai { background: #2d2d2d; color: #ececec; align-self: flex-start; border-bottom-left-radius: 4px; border-left: 4px solid #4facfe; }
+        .user { background: #0052cc; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .system { background: #263238; color: #b0bec5; font-size: 0.9rem; text-align: center; align-self: center; width: auto; }
+        .error { background: #3d0000; color: #ff8a80; border: 1px solid #8a0000; text-align: center; }
+
+        /* 텍스트 꾸미기 (Bold, List 등) */
+        .message strong { color: #4facfe; font-weight: 700; }
+        .message ul { padding-left: 20px; margin: 5px 0; }
+        .message li { margin-bottom: 5px; }
+
         #input-area { padding: 20px; background: #1e1e1e; border-top: 1px solid #333; display: flex; gap: 10px; }
-        input { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #2d2d2d; color: white; font-size: 16px; outline: none; }
-        input:focus { border-color: #0052cc; }
-        button { padding: 0 25px; border-radius: 8px; border: none; background: #0052cc; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #0065ff; }
-        button:disabled { background: #444; cursor: not-allowed; }
+        input { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #2d2d2d; color: white; font-size: 16px; outline: none; transition: 0.2s; }
+        input:focus { border-color: #4facfe; }
+        button { padding: 0 25px; border-radius: 8px; border: none; background: #0052cc; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 1rem; }
+        button:hover { background: #0065ff; transform: translateY(-1px); }
+        button:disabled { background: #444; cursor: not-allowed; transform: none; }
     </style>
 </head>
 <body>
 
 <header>
-    🟢 SocialCare AI (공식 SDK 연결됨)
+    <span>🤖 아동보호 상담 비서</span>
+    <span id="manual-status">📂 매뉴얼 확인 중...</span>
 </header>
 
 <div id="chat-container">
     <div class="message ai">
-        안녕하세요. 드디어 연결되었습니다! 🎉<br>
-        이제 끊김 없이 대화할 수 있습니다.<br>
-        (방금 확인하신 '새 프로젝트 키'를 준비해주세요.)
+        안녕하세요! 선생님의 업무 매뉴얼을 완벽하게 숙지했습니다.<br>
+        이제 궁금한 점을 물어보시면 <b>매뉴얼에 기반해서</b> 정확히 답변해 드릴게요.
     </div>
 </div>
 
@@ -48,88 +60,120 @@
     const chatBox = document.getElementById('chat-container');
     const input = document.getElementById('user-input');
     const btn = document.getElementById('btn-send');
+    const statusLabel = document.getElementById('manual-status');
 
-    // 1. 키 관리 (저장소 이름 변경으로 새 키 강제 입력 유도)
+    // 키 관리
     const STORAGE_KEY = "FINAL_VICTORY_KEY";
     let apiKey = localStorage.getItem(STORAGE_KEY);
+    let manualContent = "";
 
-    // 2. 메시지 추가 함수
+    // 1. 매뉴얼 파일 로드 (시작하자마자 실행)
+    async function loadManual() {
+        try {
+            const response = await fetch('./manual.txt');
+            if (response.ok) {
+                manualContent = await response.text();
+                statusLabel.innerText = "✅ 매뉴얼 로드됨";
+                statusLabel.className = "ok";
+                console.log("매뉴얼 로딩 성공 (길이: " + manualContent.length + ")");
+            } else {
+                throw new Error("파일 없음");
+            }
+        } catch (e) {
+            statusLabel.innerText = "⚠️ 매뉴얼 없음 (manual.txt 확인)";
+            statusLabel.className = "fail";
+            addMessage("⚠️ <b>[경고]</b> 'manual.txt' 파일을 찾을 수 없습니다. 같은 폴더에 파일이 있는지 확인해주세요.", "system");
+        }
+    }
+    loadManual();
+
+    // 2. 메시지 화면 출력 및 꾸미기 (Formatter)
+    function formatText(text) {
+        // **굵게** -> <strong>굵게</strong>
+        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // * 목록 -> <li>목록
+        formatted = formatted.replace(/^\* (.*$)/gm, '<li>$1</li>');
+        // 줄바꿈 처리
+        formatted = formatted.replace(/\n/g, '<br>');
+        return formatted;
+    }
+
     function addMessage(text, type) {
         const div = document.createElement('div');
         div.className = `message ${type}`;
-        div.innerHTML = text; // HTML 태그 허용
+        div.innerHTML = type === 'ai' ? formatText(text) : text;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
         return div;
     }
 
-    // 3. 키가 없으면 물어보기
-    if (!apiKey) {
-        addMessage("🔑 <b>API 키가 필요합니다.</b><br>아래 입력창에 '새 프로젝트 키'를 넣고 전송을 누르세요.", "system error");
-    }
-
-    // 4. 전송 로직
+    // 3. 전송 로직
     async function handleSend() {
         const text = input.value.trim();
         if (!text) return;
 
-        // 키 입력 모드인지 확인
+        // 키 입력 처리
         if (!apiKey) {
             if (text.startsWith("AIza")) {
                 apiKey = text;
                 localStorage.setItem(STORAGE_KEY, apiKey);
                 input.value = "";
-                addMessage("✅ 키가 저장되었습니다. 이제 질문하세요!", "ai");
-                
-                // 화면 새로고침하여 SDK 재설정 (가장 확실한 방법)
-                setTimeout(() => location.reload(), 1000);
+                addMessage("키가 저장되었습니다. 다시 질문해주세요.", "system");
+                setTimeout(() => location.reload(), 500);
             } else {
-                alert("올바른 API 키(AIza...)를 입력해주세요.");
+                alert("올바른 키를 입력해주세요.");
             }
             return;
         }
 
-        // 일반 대화 모드
         input.value = "";
         addMessage(text, "user");
-        const loadingMsg = addMessage("생각 중...", "ai");
+        const loadingMsg = addMessage("매뉴얼 검색 중...", "ai");
         btn.disabled = true;
 
         try {
-            // [핵심] 공식 도구 초기화
             const genAI = new GoogleGenerativeAI(apiKey);
-            
-            // [중요] 아까 목록에서 확인된 가장 안전한 모델 사용 (1.5 Flash)
-            // 2.5 같은 실험용 모델은 아직 웹 연동이 불안정할 수 있으므로, 1.5로 잡습니다.
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-            const result = await model.generateContent(text);
+            // [핵심] AI에게 역할을 강력하게 부여 (프롬프트 엔지니어링)
+            const prompt = `
+            당신은 '아동보호전문기관 상담원'을 위한 업무 보조 AI입니다.
+            반드시 아래 [업무 매뉴얼]에 있는 내용만을 바탕으로 답변해야 합니다.
+            
+            [규칙]
+            1. 매뉴얼에 없는 내용은 "매뉴얼에 해당 내용이 없습니다"라고 솔직하게 말하세요. 추측하지 마세요.
+            2. 답변은 핵심만 요약해서, 읽기 편하게 번호나 강조(Bold)를 써서 정리하세요.
+            3. 말투는 정중하고 전문적인 '해요체'를 쓰세요.
+
+            [업무 매뉴얼 데이터]
+            ${manualContent}
+
+            [사용자 질문]
+            ${text}
+            `;
+
+            const result = await model.generateContent(prompt);
             const response = await result.response;
             const aiText = response.text();
 
-            loadingMsg.innerText = aiText; // 답변 교체
+            loadingMsg.innerHTML = formatText(aiText);
 
         } catch (error) {
-            console.error(error);
             loadingMsg.className = "message error";
-            loadingMsg.innerHTML = `⛔ 오류: ${error.message}<br>(팁: 키가 정확한지, 인터넷이 연결됐는지 확인하세요)`;
-            
-            if (error.message.includes("API key")) {
-                localStorage.removeItem(STORAGE_KEY); // 키가 틀렸으면 삭제
-                addMessage("키가 잘못되었습니다. 새로고침 후 다시 입력하세요.", "error");
-            }
+            loadingMsg.innerHTML = `오류 발생: ${error.message}`;
+            if (error.message.includes("API key")) localStorage.removeItem(STORAGE_KEY);
         } finally {
             btn.disabled = false;
             input.focus();
         }
     }
 
-    // 이벤트 연결
     btn.addEventListener('click', handleSend);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') handleSend();
-    });
-</script>
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSend(); });
 
+    // 시작 시 키 확인
+    if (!apiKey) addMessage("🔑 <b>새 프로젝트 API 키</b>를 입력해주세요.", "system");
+
+</script>
 </body>
 </html>
