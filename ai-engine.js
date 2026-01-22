@@ -1,9 +1,9 @@
 /**
- * ai-engine.js - 호환성 100% 보장되는 Gemini Pro 버전
+ * ai-engine.js - 오류 정밀 진단 버전
  */
 export class AIEngine {
     constructor(apiKey) {
-        this.apiKey = apiKey; 
+        this.apiKey = apiKey.trim();
         this.localManualContent = "";
     }
 
@@ -22,9 +22,8 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // [최종 해결책] 최신 모델 대신, 가장 안정적인 'gemini-pro'를 사용합니다.
-        // 이 모델은 404 오류가 거의 발생하지 않는 '국룰' 모델입니다.
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.apiKey}`;
+        // [해결책 2] 가장 표준적인 주소 체계 사용
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
 
         const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
         [매뉴얼]
@@ -41,10 +40,15 @@ export class AIEngine {
 
             const data = await response.json();
 
+            // [오류 진단] 왜 안 되는지 상세하게 알려줍니다.
             if (!response.ok) {
-                let msg = data.error ? data.error.message : "연결 오류";
-                if (response.status === 404) msg = "⛔ 모델 주소 오류 (gemini-pro)";
-                if (response.status === 400) msg = "⛔ API 키가 유효하지 않습니다.";
+                let msg = data.error ? data.error.message : "알 수 없는 오류";
+                
+                // 자주 발생하는 에러를 한국어로 번역해서 보여줌
+                if (response.status === 404) msg = "❌ [404 오류] 모델을 찾을 수 없습니다. (gemini-1.5-flash)";
+                if (response.status === 400 && msg.includes('API key')) msg = "❌ [키 오류] API 키가 잘못되었거나 만료되었습니다. 다시 입력해주세요.";
+                if (response.status === 429) msg = "⏳ [대기] 사용량이 많아 잠시 멈췄습니다. 30초 뒤에 해보세요.";
+                
                 throw new Error(msg);
             }
 
@@ -53,12 +57,12 @@ export class AIEngine {
                 if (onChunk) onChunk(text);
                 return text;
             } else {
-                return "답변을 생성하지 못했습니다.";
+                return "AI가 답변을 생성하지 못했습니다. (빈 응답)";
             }
 
         } catch (error) {
-            const errorMsg = "⛔ 오류 발생: " + error.message;
-            if (onChunk) onChunk(errorMsg); // 에러가 나면 화면에 꼭 보여줌
+            const errorMsg = "⚠️ " + error.message;
+            if (onChunk) onChunk(errorMsg);
             return errorMsg;
         }
     }
