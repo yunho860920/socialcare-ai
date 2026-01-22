@@ -3,152 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 팩트체크 버전</title>
+    <title>SocialCare AI - 팩트 추출 모드</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
         body { font-family: 'Pretendard', sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
-        
         header { padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-        .title { font-weight: 700; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 10px; }
-        
-        .status-badge { font-size: 0.8rem; padding: 4px 10px; border-radius: 12px; background: #333; color: #aaa; border: 1px solid #444; }
-        .status-badge.active { background: #1b5e20; color: #a5d6a7; border-color: #2e7d32; }
-
+        .title { font-weight: 700; font-size: 1.1rem; color: #fff; }
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 0.95rem; }
-        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
-        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; align-self: flex-start; }
+        .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; }
+        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; }
         .user { background: var(--accent-color); color: white; align-self: flex-end; }
-        
-        .ai strong { color: #64b5f6; }
-        .ai ul, .ai ol { padding-left: 20px; margin: 5px 0; }
-
+        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
         #input-area { padding: 20px; background: var(--chat-bg); border-top: 1px solid #333; display: flex; gap: 10px; }
-        input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; font-size: 16px; outline: none; }
-        button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; white-space: nowrap; }
-        button:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
-        
-        #progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #333; display: none; }
-        #progress-bar { height: 100%; background: #4facfe; width: 0%; transition: width 0.3s; }
+        input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; outline: none; }
+        button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-
-<div id="progress-container"><div id="progress-bar"></div></div>
-
-<header>
-    <div class="title">🛡️ 보안 팩트 비서</div>
-    <span id="status-text" class="status-badge">준비 중...</span>
-</header>
-
+<header><div class="title">🛡️ 원문 기반 팩트 체크 비서</div></header>
 <div id="chat-box"></div>
-
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="AI 엔진을 불러오는 중입니다..." disabled>
+    <input type="text" id="user-input" placeholder="매뉴얼 내용을 원문 그대로 찾아드립니다." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
 <script type="module">
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
-
     const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
-
-    let engine = null;
-    let manualContent = "";
-    let messagesHistory = []; 
-    
-    const chatBox = document.getElementById('chat-box');
-    const userInput = document.getElementById('user-input');
-    const sendBtn = document.getElementById('btn-send');
-    const statusText = document.getElementById('status-text');
-    const progressBar = document.getElementById('progress-bar');
-    const progressContainer = document.getElementById('progress-container');
+    let engine = null, manualContent = "", messagesHistory = [];
+    const chatBox = document.getElementById('chat-box'), userInput = document.getElementById('user-input'), sendBtn = document.getElementById('btn-send');
 
     function addMessage(type, text) {
         const div = document.createElement('div');
         div.className = `message ${type}`;
-        if (type === 'ai') div.innerHTML = marked.parse(text);
-        else div.textContent = text;
+        div.innerHTML = type === 'ai' ? marked.parse(text) : text;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 
     async function initialize() {
-        progressContainer.style.display = 'block';
         try {
-            addMessage("system", "📂 manual.txt 확인 중...");
             const res = await fetch('manual.txt?v=' + Date.now());
-            if (!res.ok) throw new Error("manual.txt 파일 없음");
             manualContent = await res.text();
-            addMessage("system", "✅ 매뉴얼 로드 완료.");
-
-            addMessage("system", "🚀 AI 엔진 구동 시작... (잠시만요)");
-            
-            engine = await CreateMLCEngine(
-                SELECTED_MODEL,
-                {
-                    initProgressCallback: (report) => {
-                        const percent = report.progress * 100;
-                        progressBar.style.width = `${percent}%`;
-                        statusText.textContent = `로딩: ${Math.round(percent)}%`;
-                        if (report.progress === 1.0) statusText.textContent = "🟢 대화 가능";
-                    }
-                }
-            );
-
-            // [핵심 수정] 시스템 프롬프트를 아주 강력하게 변경
-            messagesHistory = [
-                { 
-                    role: "system", 
-                    content: "너는 아동보호전문기관의 문서 검색기다. 창의성을 발휘하지 마라. 사용자의 질문에 해당하는 내용을 아래 [매뉴얼]에서 찾아 문장 그대로 출력해라. 해석하거나 요약하지 마라. 매뉴얼에 없는 내용은 '내용 없음'이라고만 답해라." 
-                },
-                {
-                    role: "user",
-                    content: `### 매뉴얼 데이터 ###\n${manualContent.substring(0, 20000)}\n\n이 내용을 절대적 기준으로 삼아라.`
-                },
-                {
-                    role: "assistant",
-                    content: "네, 알겠습니다. 매뉴얼에 있는 텍스트 그대로만 답변하겠습니다."
-                }
-            ];
-
-            progressContainer.style.display = 'none';
-            statusText.classList.add('active');
-            statusText.textContent = "🟢 보안 연결됨";
-            
-            userInput.disabled = false;
-            sendBtn.disabled = false;
-            userInput.placeholder = "질문을 입력하세요...";
-            userInput.focus();
-            
-            addMessage("ai", "안녕하세요. **매뉴얼 원문 그대로** 답변하는 보안 비서입니다. 무엇을 도와드릴까요?");
-
-        } catch (error) {
-            console.error(error);
-            addMessage("system", `🚨 오류: ${error.message}`);
-        }
+            engine = await CreateMLCEngine(SELECTED_MODEL, { initProgressCallback: (p) => { if(p.progress === 1) addMessage("system", "✅ 매뉴얼 시스템 가동 완료"); } });
+            userInput.disabled = false; sendBtn.disabled = false;
+        } catch (e) { addMessage("system", "🚨 매뉴얼 로드 실패"); }
     }
 
     async function sendMessage() {
-        const text = userInput.value.trim();
-        if (!text) return;
-
-        addMessage("user", text);
-        userInput.value = "";
-        userInput.disabled = true;
-        sendBtn.disabled = true;
-        sendBtn.textContent = "검색 중...";
+        const text = userInput.value.trim(); if (!text) return;
+        addMessage("user", text); userInput.value = "";
+        
+        // 헛소리 방지를 위한 초강력 시스템 프롬프트
+        const promptMessages = [
+            { role: "system", content: "너는 아동학대 매뉴얼 원문 검색 도구다. 절대 지어내지 마라. 아래 [매뉴얼] 텍스트에서 사용자의 질문과 관련된 문장을 '토씨 하나 틀리지 말고 그대로' 가져와라. 설명이나 해석을 덧붙이지 마라." },
+            { role: "user", content: `[매뉴얼]\n${manualContent.substring(0, 15000)}\n\n[질문]\n${text}\n\n[지시]\n매뉴얼 원문에 있는 문장만 그대로 출력해.` }
+        ];
 
         try {
-            messagesHistory.push({ role: "user", content: text });
-
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
-                messages: messagesHistory,
-                temperature: 0.0,  // [핵심] 창의성 0 (Absolute Zero)
-                repetition_penalty: 1.1, 
-                stream: true,
+                messages: promptMessages,
+                temperature: 0.0, // 창의성 완전 제거
+                repetition_penalty: 1.5, // 중복 답변 방지
+                stream: true
             });
 
             const aiDiv = document.createElement('div');
@@ -156,29 +75,16 @@
             chatBox.appendChild(aiDiv);
 
             for await (const chunk of chunks) {
-                const content = chunk.choices[0]?.delta?.content || "";
-                fullResponse += content;
+                fullResponse += chunk.choices[0]?.delta?.content || "";
                 aiDiv.innerHTML = marked.parse(fullResponse);
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
-
-            messagesHistory.push({ role: "assistant", content: fullResponse });
-
-        } catch (error) {
-            addMessage("system", "오류: " + error.message);
-        } finally {
-            userInput.disabled = false;
-            sendBtn.disabled = false;
-            sendBtn.textContent = "전송";
-            userInput.focus();
-        }
+        } catch (e) { addMessage("system", "오류 발생"); }
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-
+    sendBtn.onclick = sendMessage;
+    userInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
     initialize();
 </script>
-
 </body>
 </html>
