@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 매뉴얼 리더</title>
+    <title>업무용 챗봇</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -19,7 +19,6 @@
         input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; outline: none; }
         button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; }
         
-        /* 로딩바 */
         #progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #333; display: none; }
         #progress-bar { height: 100%; background: #4facfe; width: 0%; transition: width 0.3s; }
     </style>
@@ -27,7 +26,7 @@
 <body>
 
 <div id="progress-container"><div id="progress-bar"></div></div>
-<header><div class="title">🛡️ 매뉴얼 리더 (단순 모드)</div></header>
+<header><div class="title">🤖 업무용 챗봇</div></header>
 
 <div id="chat-box"></div>
 
@@ -39,13 +38,12 @@
 <script type="module">
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
     
-    // 로컬 모델 (Llama 3.2 1B)
     const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
     
     let engine = null;
     let manualContent = "";
-    // [중요] 기억력 변수(messagesHistory) 삭제함. 
-    // 오직 현재 질문 하나만 처리하도록 단순화.
+    // [수정 1] 중복 메시지 방지용 플래그
+    let isModelReady = false; 
 
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
@@ -67,22 +65,32 @@
             // 1. 매뉴얼 읽기
             addMessage("system", "📂 매뉴얼 파일 확인 중...");
             const res = await fetch('manual.txt?v=' + Date.now());
+            if(!res.ok) throw new Error("manual.txt 파일 없음");
+            
             manualContent = await res.text();
+            
+            // [수정 2] 매뉴얼이 잘 읽혔는지 콘솔로 확인 (F12에서 확인 가능)
+            console.log("매뉴얼 길이:", manualContent.length); 
+
             addMessage("system", "✅ 매뉴얼 로드 완료.");
 
             // 2. 엔진 시동
-            addMessage("system", "🚀 AI 엔진 초기화 중...");
+            addMessage("system", "🚀 AI 엔진 초기화 중... (잠시만 기다려주세요)");
             engine = await CreateMLCEngine(SELECTED_MODEL, { 
                 initProgressCallback: (p) => { 
                     progressBar.style.width = `${p.progress * 100}%`;
-                    if(p.progress === 1) addMessage("system", "✅ 대화 준비 완료."); 
+                    // [수정 3] 완료 메시지가 딱 한 번만 뜨도록 조건 강화
+                    if(p.progress === 1 && !isModelReady) { 
+                        isModelReady = true;
+                        addMessage("system", "✅ 업무 준비 완료. 질문해 주세요."); 
+                        userInput.disabled = false; 
+                        sendBtn.disabled = false;
+                        userInput.placeholder = "질문을 입력하세요...";
+                        userInput.focus();
+                        progressContainer.style.display = 'none';
+                    } 
                 } 
             });
-            
-            progressContainer.style.display = 'none';
-            userInput.disabled = false; sendBtn.disabled = false;
-            userInput.placeholder = "질문을 입력하세요...";
-            userInput.focus();
 
         } catch (e) { addMessage("system", "🚨 오류: " + e.message); }
     }
@@ -91,18 +99,17 @@
         const text = userInput.value.trim(); if (!text) return;
         addMessage("user", text); userInput.value = "";
         
-        // [복구] 가장 잘 작동했던 단순 프롬프트 구조
-        // 복잡한 역할 부여 없이 '데이터'와 '질문'만 던져줌
+        // [수정 4] 매뉴얼 인식 범위를 30,000자로 늘리고 프롬프트를 부드럽게 변경
         const simpleMessages = [
+            { 
+                role: "system", 
+                content: "너는 아동보호전문기관의 상담 업무를 돕는 AI 챗봇이야. 아래 [매뉴얼 내용]을 잘 읽고 사용자의 질문에 대해 친절하고 정확하게 답변해줘." 
+            },
             { 
                 role: "user", 
                 content: `
-[지시사항]
-아래 제공된 [매뉴얼 텍스트]를 읽고 [질문]에 대한 답을 찾아 그대로 답변해 주세요.
-매뉴얼에 없는 내용은 "매뉴얼에 없습니다"라고 답변하세요.
-
-[매뉴얼 텍스트]
-${manualContent.substring(0, 20000)}
+[매뉴얼 내용]
+${manualContent.substring(0, 30000)}
 
 [질문]
 ${text}
@@ -114,8 +121,8 @@ ${text}
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
                 messages: simpleMessages,
-                temperature: 0.1, // 약간의 유연성만 허용 (0.0은 너무 딱딱해서 오류 유발 가능)
-                repetition_penalty: 1.1, // 반복 방지
+                temperature: 0.1, 
+                repetition_penalty: 1.1, 
                 stream: true
             });
 
