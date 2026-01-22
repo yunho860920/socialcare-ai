@@ -1,23 +1,27 @@
 /**
- * app.js - 통합 제어 솔루션 (All-in-One)
- * 40년 차 전문가 검수 완료: 라이브러리 동적 로딩 + 버튼 강제 활성화 + 모델 자동 우회
+ * app.js - 키 검증 및 진단 모드 (Diagnostic Mode)
+ * 40년 차 전문가 처방: 브라우저 캐시 강제 삭제 및 즉시 연결 테스트
  */
 
-// 1. 메인 실행 함수 (즉시 실행)
-(async function runApplication() {
-    console.log("🚀 [시스템] 앱 시작 중...");
-    
-    // UI 요소 찾기
+(async function runDiagnosticApp() {
+    console.log("🚀 [진단 모드] 앱 시작...");
+
+    // UI 요소 가져오기
     const chatMessages = document.getElementById('chat-messages');
     const chatInput = document.getElementById('chat-input');
     const btnSend = document.getElementById('btn-send');
-    const statusBadge = document.getElementById('status-badge');
     
-    // 상태 메시지 출력 함수
-    const logMessage = (text, type = 'ai') => {
+    // 1. [강제 조치] 기존에 저장된 모든 키를 삭제합니다. (좀비 키 제거)
+    // 이 코드가 있으면 새로고침 할 때마다 무조건 키를 다시 물어봅니다.
+    // 연결이 성공하면 나중에 이 줄만 지우면 됩니다.
+    localStorage.clear(); 
+    console.log("🧹 브라우저 기억 소거 완료");
+
+    // 메시지 출력 도우미
+    const log = (msg, type = 'ai') => {
         const div = document.createElement('div');
         div.className = `message ${type}`;
-        div.innerText = text;
+        div.innerText = msg;
         if(chatMessages) {
             chatMessages.appendChild(div);
             chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -25,56 +29,51 @@
         return div;
     };
 
-    // 2. 구글 AI 도구(SDK) 직접 가져오기 (index.html 수정 불필요)
-    let GoogleGenerativeAI;
+    // 2. 키 입력 및 즉시 검증 (Health Check)
+    let apiKey = prompt("🔑 [진단] '새 프로젝트'의 API 키를 붙여넣으세요:\n(방금 받은 키여야 합니다!)");
+
+    if (!apiKey || apiKey.length < 10) {
+        log("⛔ 키가 입력되지 않았습니다. 새로고침(F5) 하세요.");
+        return;
+    }
+
+    log("🔍 키 검증 중... (잠시만 기다리세요)");
+
+    // 3. 구글 서버에 '안녕'이라고 찔러보기 (모델: gemini-1.5-flash)
     try {
-        if (statusBadge) statusBadge.innerText = '🟡 도구 로딩 중...';
-        // 인터넷에서 직접 최신 도구를 가져옵니다.
-        const module = await import('https://esm.run/@google/generative-ai');
-        GoogleGenerativeAI = module.GoogleGenerativeAI;
-        console.log("✅ [시스템] 구글 SDK 로드 완료");
-    } catch (e) {
-        console.error(e);
-        logMessage("⛔ [치명적 오류] 인터넷 연결을 확인하세요. AI 도구를 가져올 수 없습니다.");
-        if (statusBadge) statusBadge.innerText = '🔴 로딩 실패';
-        return; // 중단
-    }
+        const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        
+        const testResponse = await fetch(testUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "Hello" }] }]
+            })
+        });
 
-    // 3. API 키 확인 및 입력
-    const STORAGE_KEY = 'GEMINI_INTEGRATED_KEY_V1';
-    let apiKey = localStorage.getItem(STORAGE_KEY);
-    
-    if (!apiKey) {
-        // 약간의 딜레이 후 입력창 띄우기
-        await new Promise(r => setTimeout(r, 500));
-        apiKey = prompt("🔑 [최종 통합] '새 프로젝트'에서 받은 API 키를 입력하세요:");
-        if (apiKey && apiKey.trim().length > 10) {
-            localStorage.setItem(STORAGE_KEY, apiKey.trim());
-            // 키 저장 후 깔끔하게 새로고침
-            location.reload(); 
-            return;
-        } else {
-            logMessage("⚠️ 키가 없어 시작할 수 없습니다. 새로고침(F5) 해주세요.");
-            return;
+        if (!testResponse.ok) {
+            const errData = await testResponse.json();
+            console.error(errData);
+            throw new Error(`[거부됨] 구글이 키를 거부했습니다.\n이유: ${errData.error?.message || testResponse.statusText}`);
         }
+
+        log("✅ [검증 성공] 키가 정상 작동합니다! 연결됨.", "ai");
+        log("이제 매뉴얼에 대해 질문해 주세요.", "ai");
+
+    } catch (e) {
+        log(`❌ [검증 실패] 입력하신 키로는 연결할 수 없습니다.\n${e.message}`);
+        log("💡 해결책: Google AI Studio에서 프로젝트를 새로 만들고 키를 다시 받으세요.");
+        return; // 앱 중단
     }
 
-    // 4. 매뉴얼 파일 로딩
-    let manualContent = "내용 없음";
+    // 4. 매뉴얼 로딩
+    let manualText = "";
     try {
         const res = await fetch('./manual.txt');
-        if (res.ok) manualContent = await res.text();
-    } catch (e) { console.warn("매뉴얼 로드 실패"); }
+        if (res.ok) manualText = await res.text();
+    } catch(e) { console.warn("매뉴얼 없음"); }
 
-    // 5. AI 엔진 초기화
-    const genAI = new GoogleGenerativeAI(apiKey);
-    if (statusBadge) {
-        statusBadge.innerText = '🟢 온라인 (준비됨)';
-        statusBadge.style.color = '#10b981';
-    }
-    logMessage("시스템 준비 완료. 질문을 입력하세요.");
-
-    // 6. 전송 기능 (버튼 & 엔터키)
+    // 5. 채팅 기능 활성화 (검증 통과 시에만 작동)
     let isSending = false;
 
     const handleSend = async () => {
@@ -84,70 +83,45 @@
 
         isSending = true;
         chatInput.value = "";
-        logMessage(text, 'user');
-        const aiMsgDiv = logMessage("생각 중...", 'ai');
+        log(text, 'user');
+        const aiDiv = log("...", 'ai');
 
         try {
-            // [핵심] 모델 자동 선택 (1.5 Flash -> Pro)
-            let model;
-            let stream;
-            
-            // 1순위: 1.5 Flash 시도
-            try {
-                model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-                const prompt = `매뉴얼:\n${manualContent}\n\n질문: ${text}`;
-                const result = await model.generateContentStream(prompt);
-                stream = result.stream;
-            } catch (err1) {
-                console.warn("1.5 Flash 실패, Pro 모델 시도");
-                // 2순위: Pro 모델 시도
-                model = genAI.getGenerativeModel({ model: "gemini-pro" });
-                const prompt = `매뉴얼:\n${manualContent}\n\n질문: ${text}`;
-                const result = await model.generateContentStream(prompt);
-                stream = result.stream;
-            }
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ 
+                        parts: [{ text: `너는 사회복지사야. 아래 매뉴얼을 보고 답변해.\n[매뉴얼]: ${manualText}\n\n질문: ${text}` }] 
+                    }]
+                })
+            });
 
-            let fullText = "";
-            for await (const chunk of stream) {
-                const chunkText = chunk.text();
-                fullText += chunkText;
-                aiMsgDiv.innerText = fullText;
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+            const data = await response.json();
+            if (data.candidates && data.candidates.length > 0) {
+                aiDiv.innerText = data.candidates[0].content.parts[0].text;
+            } else {
+                aiDiv.innerText = "답변을 생성하지 못했습니다.";
             }
 
         } catch (error) {
-            console.error(error);
-            let errMsg = "오류가 발생했습니다.";
-            if (error.message.includes('API key')) errMsg = "⛔ API 키가 틀렸습니다. 저장소를 지우고 다시 시도하세요.";
-            if (error.message.includes('404')) errMsg = "⛔ 모델 권한이 없습니다. 반드시 '새 프로젝트' 키를 쓰세요.";
-            aiMsgDiv.innerText = errMsg;
+            aiDiv.innerText = "통신 오류: " + error.message;
         } finally {
             isSending = false;
         }
     };
 
-    // 이벤트 리스너 부착
+    // 버튼 이벤트 연결 (기존 이벤트 제거 후 재부착)
     if (btnSend) {
-        // 기존 이벤트 제거를 위해 복제 후 교체 (확실한 초기화)
         const newBtn = btnSend.cloneNode(true);
         btnSend.parentNode.replaceChild(newBtn, btnSend);
-        
-        newBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            console.log("버튼 클릭됨");
-            handleSend();
-        });
+        newBtn.addEventListener('click', (e) => { e.preventDefault(); handleSend(); });
         newBtn.style.cursor = 'pointer';
-        newBtn.removeAttribute('disabled');
     }
-
-    if (chatInput) {
-        chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-            }
-        });
-    }
+    
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); handleSend(); }
+    });
 
 })();
