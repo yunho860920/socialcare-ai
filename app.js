@@ -1,9 +1,5 @@
-/**
- * app.js - 캐시 무력화 적용 버전
- */
-
-// 👇 [이 부분이 핵심입니다!] 뒤에 ?v=final2 를 꼭 붙여주세요.
-import { AIEngine } from './ai-engine.js?v=final2';
+// 👇 이번엔 final3 입니다!
+import { AIEngine } from './ai-engine.js?v=final3';
 
 class App {
     constructor() {
@@ -13,13 +9,11 @@ class App {
         this.isSending = false;
         this.init();
     }
-    
-    // ... (나머지 코드는 기존과 동일하므로 그대로 두셔도 됩니다) ...
-    
+
     async init() {
         this.initElements();
         this.bindEvents();
-        this.updateOnlineStatus(navigator.onLine);
+        this.updateOnlineStatus(true);
         this.startAI();
     }
 
@@ -38,16 +32,16 @@ class App {
         window.addEventListener('offline', () => this.updateOnlineStatus(false));
         this.btnSend.onclick = (e) => { e.preventDefault(); this.handleSend(); };
         this.chatInput.onkeydown = (e) => {
-             if (e.isComposing || e.keyCode === 229) return;
-             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
+            if (e.isComposing || e.keyCode === 229) return;
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
         };
     }
 
     updateOnlineStatus(isOnline) {
         if (!this.statusBadge) return;
         this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
-        this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
         this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
+        this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
     }
 
     async startAI() {
@@ -56,11 +50,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `AI 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `최종 연결 시도... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요! Gemini Pro 기반 업무 비서입니다. 이제 정말 됩니다!');
+                        this.appendMessage('ai', '안녕하세요! 1.5 Flash 모델(안정 버전)이 준비되었습니다.');
                     }, 500);
                 }
             });
@@ -77,7 +71,7 @@ class App {
         const aiMsg = this.appendMessage('ai', '...');
         try {
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
-        } catch (e) { aiMsg.innerText = "오류: " + e.message; }
+        } catch (e) { aiMsg.innerText = "시스템 오류: " + e.message; }
         finally { this.isSending = false; }
     }
 
@@ -86,6 +80,7 @@ class App {
         div.className = `message ${role}`;
         div.innerText = text;
         document.getElementById('chat-messages').appendChild(div);
+        document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
         return div;
     }
 }
