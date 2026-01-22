@@ -3,161 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 맥락 인식 버전</title>
+    <title>SocialCare AI - 기계적 팩트 추출</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
         body { font-family: 'Pretendard', sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
-        
         header { padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-        .title { font-weight: 700; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 10px; }
-        
-        .status-badge { font-size: 0.8rem; padding: 4px 10px; border-radius: 12px; background: #333; color: #aaa; border: 1px solid #444; }
-        .status-badge.active { background: #1b5e20; color: #a5d6a7; border-color: #2e7d32; }
-
+        .title { font-weight: 700; font-size: 1.1rem; color: #fff; }
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
         .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 0.95rem; }
-        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
-        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; align-self: flex-start; }
+        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; }
         .user { background: var(--accent-color); color: white; align-self: flex-end; }
-        
-        .ai strong { color: #64b5f6; }
-        .ai ul, .ai ol { padding-left: 20px; margin: 5px 0; }
-
+        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
         #input-area { padding: 20px; background: var(--chat-bg); border-top: 1px solid #333; display: flex; gap: 10px; }
-        input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; font-size: 16px; outline: none; }
-        button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; white-space: nowrap; }
-        button:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
-        
-        #progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #333; display: none; }
-        #progress-bar { height: 100%; background: #4facfe; width: 0%; transition: width 0.3s; }
+        input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; outline: none; }
+        button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-
-<div id="progress-container"><div id="progress-bar"></div></div>
-
-<header>
-    <div class="title">🛡️ 보안 안심 매뉴얼 비서</div>
-    <span id="status-text" class="status-badge">모델 준비 중...</span>
-</header>
-
+<header><div class="title">🛡️ 매뉴얼 정밀 검색기 (Temp 0)</div></header>
 <div id="chat-box"></div>
-
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="AI 엔진을 다운로드하고 있습니다..." disabled>
+    <input type="text" id="user-input" placeholder="매뉴얼 로딩 중..." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
 <script type="module">
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
-
+    
+    // 로컬 모델 (Llama 3.2 1B)
     const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
-
+    
     let engine = null;
     let manualContent = "";
-    // [핵심] 대화 내용을 기억할 저장소 추가
-    let conversationHistory = []; 
-    
+    // 1B 모델의 혼란을 막기 위해 히스토리는 '최근 1개'만 기억하거나 아예 뺍니다.
+    // 여기서는 맥락 유지를 위해 '직전 대화 1세트'만 유지합니다.
+    let lastConversation = ""; 
+
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('btn-send');
-    const statusText = document.getElementById('status-text');
-    const progressBar = document.getElementById('progress-bar');
-    const progressContainer = document.getElementById('progress-container');
 
     function addMessage(type, text) {
         const div = document.createElement('div');
         div.className = `message ${type}`;
-        if (type === 'ai') div.innerHTML = marked.parse(text);
-        else div.textContent = text;
+        div.innerHTML = type === 'ai' ? marked.parse(text) : text;
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 
     async function initialize() {
-        progressContainer.style.display = 'block';
         try {
-            addMessage("system", "📂 manual.txt 파일 읽는 중...");
             const res = await fetch('manual.txt?v=' + Date.now());
-            if (!res.ok) throw new Error("manual.txt 파일이 없습니다.");
             manualContent = await res.text();
-            addMessage("system", "✅ 매뉴얼 로드 완료.");
-
-            addMessage("system", "🚀 AI 엔진 구동 시작... (잠시만 기다려주세요)");
             
-            engine = await CreateMLCEngine(
-                SELECTED_MODEL,
-                {
-                    initProgressCallback: (report) => {
-                        const percent = report.progress * 100;
-                        progressBar.style.width = `${percent}%`;
-                        statusText.textContent = `다운로드: ${Math.round(percent)}%`;
-                        if (report.progress === 1.0) statusText.textContent = "🟢 대화 준비 완료";
-                    }
-                }
-            );
-
-            progressContainer.style.display = 'none';
-            statusText.classList.add('active');
-            statusText.textContent = "🟢 보안 연결됨";
-            
-            userInput.disabled = false;
-            sendBtn.disabled = false;
+            addMessage("system", "🚀 AI 엔진 시동 중...");
+            engine = await CreateMLCEngine(SELECTED_MODEL, { 
+                initProgressCallback: (p) => { 
+                    if(p.progress === 1) addMessage("system", "✅ 준비 완료 (정밀 모드)"); 
+                } 
+            });
+            userInput.disabled = false; sendBtn.disabled = false;
             userInput.placeholder = "질문을 입력하세요...";
             userInput.focus();
-            
-            addMessage("ai", "안녕하세요. 선생님의 PC에서 작동하는 보안 AI입니다. **앞선 대화 내용을 기억**하며 매뉴얼 기반으로 답변하겠습니다.");
-
-        } catch (error) {
-            console.error(error);
-            addMessage("system", `🚨 오류 발생: ${error.message}`);
-        }
+        } catch (e) { addMessage("system", "🚨 오류 발생"); }
     }
 
     async function sendMessage() {
-        const text = userInput.value.trim();
-        if (!text) return;
+        const text = userInput.value.trim(); if (!text) return;
+        addMessage("user", text); userInput.value = "";
+        
+        // [수정] 프롬프트를 아주 단순하게 변경 (AI가 헷갈리지 않게)
+        // 복잡한 JSON 구조 대신, 1B 모델이 이해하기 쉬운 텍스트 구조로 보냄
+        const promptMessages = [
+            { 
+                role: "system", 
+                content: "지침: 너는 매뉴얼 검색 봇이다. 아래 [매뉴얼] 내용에서 질문에 대한 답을 찾아 한국어로 답변해라. 생각이나 해석을 덧붙이지 마라." 
+            },
+            { 
+                role: "user", 
+                content: `
+[매뉴얼 데이터 시작]
+${manualContent.substring(0, 15000)}
+[매뉴얼 데이터 끝]
 
-        addMessage("user", text);
-        userInput.value = "";
-        userInput.disabled = true;
-        sendBtn.disabled = true;
-        sendBtn.textContent = "생각 중...";
+[이전 대화 맥락]
+${lastConversation}
+
+[사용자 질문]
+${text}
+
+[답변]
+` 
+            }
+        ];
 
         try {
-            // 1. 사용자 질문을 기억(History)에 저장
-            conversationHistory.push({ role: "user", content: text });
-
-            // 2. 프롬프트 구성 (매뉴얼 + 최근 대화 내역 2개만 전송 - 메모리 절약)
-            // 너무 많은 대화를 넣으면 1B 모델이 헷갈려하므로 최근 2~3턴만 유지
-            const recentHistory = conversationHistory.slice(-4); 
-
-            const messages = [
-                { 
-                    role: "system", 
-                    content: `너는 아동보호전문기관의 매뉴얼 AI다. 
-                    아래 [매뉴얼] 내용을 기반으로 한국어로 답변해.
-                    
-                    [답변 규칙]
-                    1. 질문과 관련된 내용을 매뉴얼에서 찾아 답변해.
-                    2. '이전 대화 내용'을 참고해서 맥락을 이어가. (예: '그것'이라고 물으면 앞의 주제를 말하는 것임)
-                    3. 똑같은 문장을 반복하지 마.
-                    4. 매뉴얼에 없는 내용은 모른다고 해.` 
-                },
-                { 
-                    role: "user", 
-                    content: `### 매뉴얼 데이터 ###\n${manualContent.substring(0, 20000)}` 
-                },
-                ...recentHistory // [중요] 여기에 이전 대화 기록이 들어감
-            ];
-
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
-                messages,
-                temperature: 0.1, 
-                repetition_penalty: 1.2, // [중요] 앵무새 방지 (같은 말 반복 금지)
-                stream: true,
+                messages: promptMessages,
+                temperature: 0.0, // [요청하신 설정] 무조건 0으로 고정
+                repetition_penalty: 1.2, // 뇌정지(무한반복) 방지용 안전장치
+                stream: true
             });
 
             const aiDiv = document.createElement('div');
@@ -165,30 +112,20 @@
             chatBox.appendChild(aiDiv);
 
             for await (const chunk of chunks) {
-                const content = chunk.choices[0]?.delta?.content || "";
-                fullResponse += content;
+                fullResponse += chunk.choices[0]?.delta?.content || "";
                 aiDiv.innerHTML = marked.parse(fullResponse);
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
+            
+            // 직전 대화만 기억 (너무 많이 기억하면 1B 모델은 꼬임)
+            lastConversation = `Q: ${text}\nA: ${fullResponse}`;
 
-            // 3. AI 답변도 기억(History)에 저장
-            conversationHistory.push({ role: "assistant", content: fullResponse });
-
-        } catch (error) {
-            addMessage("system", "오류: " + error.message);
-        } finally {
-            userInput.disabled = false;
-            sendBtn.disabled = false;
-            sendBtn.textContent = "전송";
-            userInput.focus();
-        }
+        } catch (e) { addMessage("system", "답변 실패"); }
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-
+    sendBtn.onclick = sendMessage;
+    userInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
     initialize();
 </script>
-
 </body>
 </html>
