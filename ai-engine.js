@@ -1,27 +1,25 @@
 /**
- * ai-engine.js - 최적 호환성 버전
+ * ai-engine.js - 전역 선언 버전
  */
-export class AIEngine {
+window.AIEngine = class AIEngine {
     constructor(apiKey) {
         this.apiKey = apiKey.trim();
-        // 전역 객체에서 SDK를 가져옵니다
         const genAI = window.googleGenerativeAI;
         this.modelManager = new genAI.GoogleGenerativeAI(this.apiKey);
         this.localManualContent = "";
     }
 
-    async initialize(onProgress) {
+    async initialize() {
         try {
             const response = await fetch('./manual.txt');
             if (response.ok) this.localManualContent = await response.text();
         } catch (e) { console.warn("매뉴얼 로드 실패"); }
-        onProgress({ progress: 1.0 });
     }
 
     async generateResponse(userInput, onChunk) {
-        // [핵심] 가장 안정적인 모델로 고정
+        // [분석 결과] 새 프로젝트 키에서는 gemini-1.5-flash가 가장 정확합니다.
         const model = this.modelManager.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const promptText = `매뉴얼을 기반으로 답변하라:\n${this.localManualContent}\n질문: ${userInput}`;
+        const promptText = `매뉴얼 데이터:\n${this.localManualContent}\n\n질문: ${userInput}`;
 
         try {
             const result = await model.generateContentStream(promptText);
@@ -33,9 +31,8 @@ export class AIEngine {
             }
             return fullText;
         } catch (error) {
-            const msg = `⛔ 오류: ${error.message}`;
-            if (onChunk) onChunk(msg);
-            throw error;
+            // [정밀 진단] 구체적인 에러 메시지 출력
+            throw new Error(error.message);
         }
     }
 }
