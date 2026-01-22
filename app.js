@@ -1,96 +1,68 @@
-// 👇 import 주소 끝에 ?v=final5 를 꼭 확인하세요!
-import { AIEngine } from './ai-engine.js?v=final5';
-
-class App {
+/**
+ * ai-engine.js - Gemini 2.0 Flash 모델 적용 (최종 해결본)
+ */
+export class AIEngine {
     constructor() {
-        if (window.__initialized) return;
-        window.__initialized = true;
-        this.ai = new AIEngine();
-        this.isSending = false;
-        this.init();
+        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); // 여기에 API 키를 넣으세요
+        this.localManualContent = "";
     }
 
-    async init() {
-        this.initElements();
-        this.bindEvents();
-        this.updateOnlineStatus(true);
-        this.startAI();
+    async initialize(onProgress) {
+        await this.fetchManualFile();
+        onProgress({ progress: 1.0 });
     }
 
-    initElements() {
-        this.chatMessages = document.getElementById('chat-messages');
-        this.chatInput = document.getElementById('chat-input');
-        this.btnSend = document.getElementById('btn-send');
-        this.statusBadge = document.getElementById('status-badge');
-        this.aiLoading = document.getElementById('ai-loading');
-        this.progressFill = document.getElementById('progress-fill');
-        this.loadingText = document.getElementById('loading-text');
-    }
-
-    bindEvents() {
-        window.addEventListener('online', () => this.updateOnlineStatus(true));
-        window.addEventListener('offline', () => this.updateOnlineStatus(false));
-        this.btnSend.onclick = (e) => { e.preventDefault(); this.handleSend(); };
-        this.chatInput.onkeydown = (e) => {
-            if (e.isComposing || e.keyCode === 229) return;
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
-        };
-    }
-
-    updateOnlineStatus(isOnline) {
-        if (!this.statusBadge) return;
-        this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
-        this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
-        this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
-    }
-
-    async startAI() {
-        this.aiLoading.classList.remove('hidden');
+    async fetchManualFile() {
         try {
-            await this.ai.initialize((report) => {
-                const progress = Math.round(report.progress * 100);
-                this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `진단 모드 V5 준비 중... (${progress}%)`;
-                if (progress === 100) {
-                    setTimeout(() => {
-                        this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 진단 기능 V5가 준비되었습니다. 질문을 입력하면 모델 목록을 확인합니다.');
-                    }, 500);
-                }
-            });
-        } catch (e) { this.loadingText.innerText = '초기화 실패'; }
-    }
-
-    async handleSend() {
-        if (this.isSending) return;
-        const text = this.chatInput.value.trim();
-        if (!text) return;
-        this.isSending = true;
-        this.chatInput.value = "";
-        this.appendMessage('user', text);
-        
-        // AI 메시지 박스를 미리 만들고 변수에 저장
-        const aiMsg = this.appendMessage('ai', '...');
-        
-        try {
-            // 결과값(chunk)이 오면 aiMsg의 텍스트를 바로바로 바꿉니다.
-            await this.ai.generateResponse(text, (chunk) => {
-                aiMsg.innerText = chunk;
-            });
-        } catch (e) { 
-            aiMsg.innerText = "치명적 오류: " + e.message; 
-        } finally { 
-            this.isSending = false; 
-            document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+            const response = await fetch('./manual.txt');
+            if (response.ok) {
+                this.localManualContent = await response.text();
+                console.log("[FILE_CHECK] manual.txt 로드 성공");
+            }
+        } catch (e) {
+            console.error("[FILE_CHECK] 파일 로드 실패");
         }
     }
 
-    appendMessage(role, text) {
-        const div = document.createElement('div');
-        div.className = `message ${role}`;
-        div.innerText = text;
-        document.getElementById('chat-messages').appendChild(div);
-        return div;
+    async generateResponse(userInput, onChunk) {
+        // [핵심] 선생님 키로 사용 가능한 'gemini-2.0-flash' 모델로 확정!
+        const modelName = "gemini-2.0-flash";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
+
+        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
+        
+[매뉴얼]
+${this.localManualContent || "내용 없음"}
+
+질문: ${userInput}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                // 만약 또 에러가 나면 화면에 그대로 보여줍니다.
+                const errorMsg = data.error ? data.error.message : "알 수 없는 오류";
+                throw new Error(errorMsg);
+            }
+
+            if (data.candidates && data.candidates.length > 0) {
+                const text = data.candidates[0].content.parts[0].text;
+                if (onChunk) onChunk(text);
+                return text;
+            } else {
+                return "답변을 생성하지 못했습니다.";
+            }
+
+        } catch (error) {
+            const msg = "⛔ 오류: " + error.message;
+            if (onChunk) onChunk(msg);
+            return msg;
+        }
     }
 }
-new App();
