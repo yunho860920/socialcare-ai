@@ -4,7 +4,7 @@
 export class AIEngine {
     constructor() {
         // [필수] 발급받으신 키를 여기에 꼭 넣어주세요!
-        this.apiKey = "YOUR_GEMINI_API_KEY"; 
+        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto"; 
         this.localManualContent = "";
     }
 
