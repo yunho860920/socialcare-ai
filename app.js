@@ -1,5 +1,5 @@
-// 👇 버전을 last_dance 로 변경
-import { AIEngine } from './ai-engine.js?v=last_dance';
+// 👇 버전을 v_victory 로 변경
+import { AIEngine } from './ai-engine.js?v=v_victory';
 
 class App {
     constructor() {
@@ -15,24 +15,22 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [중요] 저장소 키를 완전히 바꿔서, 무조건 새 키를 입력받게 합니다.
-        const STORAGE_KEY = 'GEMINI_REAL_FINAL_KEY'; 
+        // 저장소 키 변경 -> 강제로 입력창 띄움
+        const STORAGE_KEY = 'GEMINI_VICTORY_KEY'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
         if (!savedKey) {
-            // 화면이 뜨자마자 입력창 실행
             setTimeout(() => {
-                savedKey = prompt("🔑 [최종] 구글 API 키를 입력하세요:\n(이전에 안 되던 키 말고, 새로 받은 키를 넣어주세요)");
+                // 안내 문구 강화
+                savedKey = prompt("🔑 [진짜 마지막] 방금 '새 프로젝트'에서 만든 키를 입력하세요:");
                 if (savedKey && savedKey.trim().length > 10) {
                     localStorage.setItem(STORAGE_KEY, savedKey.trim());
-                    // 키 입력 후 새로고침하여 깔끔하게 시작
-                    location.reload();
+                    location.reload(); // 깔끔하게 새로고침
                 } else {
-                    alert("키를 입력해야 합니다.");
+                    alert("키를 입력해주세요.");
                 }
             }, 500);
         } else {
-            // 저장된 키가 있으면 시작
             this.ai = new AIEngine(savedKey);
             this.startAI();
         }
@@ -78,11 +76,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `기본 모델 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `최종 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 가장 튼튼한 기본 모델(Gemini Pro)로 연결했습니다. 이제 대화가 될 겁니다!');
+                        this.appendMessage('ai', '안녕하세요. 모든 준비가 끝났습니다. 질문해 보세요!');
                     }, 500);
                 }
             });
