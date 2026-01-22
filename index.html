@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>업무용 챗봇</title>
+    <title>정밀 독해 챗봇</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -29,12 +29,12 @@
 <body>
 
 <div id="progress-container"><div id="progress-bar"></div></div>
-<header><div class="title">🤖 업무용 챗봇</div></header>
+<header><div class="title">🔍 정밀 독해 챗봇</div></header>
 
 <div id="chat-box"></div>
 
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="시스템 로딩 중..." disabled>
+    <input type="text" id="user-input" placeholder="시스템 준비 중..." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
@@ -75,7 +75,7 @@
                     progressBar.style.width = `${p.progress * 100}%`;
                     if(p.progress === 1 && !isModelReady) { 
                         isModelReady = true;
-                        addMessage("system", "✅ 업무용 챗봇 준비 완료."); 
+                        addMessage("system", "✅ 질문 준비 완료."); 
                         userInput.disabled = false; 
                         sendBtn.disabled = false;
                         userInput.placeholder = "질문을 입력하세요...";
@@ -92,20 +92,21 @@
         const text = userInput.value.trim(); if (!text) return;
         addMessage("user", text); userInput.value = "";
         
-        // [원상복구] 아까 가장 잘 작동했던 '기본' 프롬프트
-        // 요약해라, 짧게해라 같은 지시를 빼야 1B 모델이 꼬이지 않습니다.
+        // [수정 핵심] AI가 딴소리 못하게 '국어 문제 풀이' 방식으로 변경
+        // 30,000자는 너무 많아서 20,000자로 줄여서 입력 (과부하 방지)
         const messages = [
-            { 
-                role: "system", 
-                content: "너는 아동보호전문기관 사회복지사야. 아래 [매뉴얼] 내용을 보고 질문에 대해 한국어로 정확하게 답변해." 
-            },
             { 
                 role: "user", 
                 content: `
-### 매뉴얼 내용 ###
-${manualContent.substring(0, 30000)}
+[지시사항]
+다음 제공되는 [매뉴얼 본문]을 읽고, [질문]에 대한 답을 본문에서 찾아 한국어로 답변하세요.
+본문에 없는 내용은 절대 지어내지 말고 "매뉴얼에 없습니다"라고 말하세요.
+인사말이나 사족을 붙이지 말고 정답만 말하세요.
 
-### 질문 ###
+[매뉴얼 본문]
+${manualContent.substring(0, 20000)}
+
+[질문]
 ${text}
 ` 
             }
@@ -115,7 +116,7 @@ ${text}
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
                 messages: messages,
-                temperature: 0.1, // 가장 안정적인 설정
+                temperature: 0.1, // 창의성 억제
                 stream: true
             });
 
