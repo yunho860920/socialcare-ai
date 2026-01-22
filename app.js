@@ -1,5 +1,5 @@
-// 👇 이번엔 final3 입니다!
-import { AIEngine } from './ai-engine.js?v=final3';
+// 👇 final4 로 변경!
+import { AIEngine } from './ai-engine.js?v=final4';
 
 class App {
     constructor() {
@@ -16,7 +16,8 @@ class App {
         this.updateOnlineStatus(true);
         this.startAI();
     }
-
+    
+    // ... (initElements, bindEvents, updateOnlineStatus 등은 기존과 동일) ...
     initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
@@ -32,16 +33,16 @@ class App {
         window.addEventListener('offline', () => this.updateOnlineStatus(false));
         this.btnSend.onclick = (e) => { e.preventDefault(); this.handleSend(); };
         this.chatInput.onkeydown = (e) => {
-            if (e.isComposing || e.keyCode === 229) return;
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
+             if (e.isComposing || e.keyCode === 229) return;
+             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
         };
     }
 
     updateOnlineStatus(isOnline) {
         if (!this.statusBadge) return;
         this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
-        this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
         this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
+        this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
     }
 
     async startAI() {
@@ -50,11 +51,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `최종 연결 시도... (${progress}%)`;
+                this.loadingText.innerText = `진단 모드 실행 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요! 1.5 Flash 모델(안정 버전)이 준비되었습니다.');
+                        this.appendMessage('ai', '안녕하세요. 자가 진단 기능이 포함된 AI 비서입니다. 질문을 입력하면 연결을 테스트합니다.');
                     }, 500);
                 }
             });
