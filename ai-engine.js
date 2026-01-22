@@ -1,9 +1,9 @@
 /**
- * ai-engine.js - 가장 안정적인 표준 모델(1.5 Flash) 적용
+ * ai-engine.js - 최종 안정화 버전
  */
 export class AIEngine {
     constructor(apiKey) {
-        this.apiKey = apiKey; 
+        this.apiKey = apiKey.trim(); 
         this.localManualContent = "";
     }
 
@@ -17,32 +17,35 @@ export class AIEngine {
             const response = await fetch('./manual.txt');
             if (response.ok) {
                 this.localManualContent = await response.text();
+                console.log("[FILE_CHECK] manual.txt 로드 성공");
             }
         } catch (e) { console.error("파일 로드 실패"); }
     }
 
     async generateResponse(userInput, onChunk) {
-        // [핵심 변경] 실험용(exp) 대신 '표준 모델(1.5-flash)' 사용
-        // 이 모델은 속도가 빠르고 제한이 덜해서 가장 안정적입니다.
-        const modelName = "gemini-1.5-flash";
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
+        // [핵심] 가장 호환성이 높은 v1beta 주소와 모델명 조합
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
 
-        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
-        [매뉴얼] ${this.localManualContent || "내용 없음"}
-        질문: ${userInput}`;
+        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 한국어로 답변하라.
+[매뉴얼]
+${this.localManualContent || "내용 없음"}
+
+질문: ${userInput}`;
 
         try {
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }]
+                })
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                let errorMsg = data.error ? data.error.message : "알 수 없는 오류";
-                if (response.status === 429) errorMsg = "⛔ (일시적 사용량 초과) 1분 뒤에 다시 시도해주세요.";
+                // 에러 발생 시 상세 메시지 출력
+                const errorMsg = data.error ? data.error.message : "연결 오류";
                 throw new Error(errorMsg);
             }
 
@@ -51,7 +54,7 @@ export class AIEngine {
                 if (onChunk) onChunk(text);
                 return text;
             } else {
-                return "답변을 생성하지 못했습니다.";
+                return "답변을 생성할 수 없습니다.";
             }
 
         } catch (error) {
