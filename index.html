@@ -3,49 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 매뉴얼 마스터</title>
+    <title>SocialCare AI - 오뚜기 버전</title>
     <style>
-        /* 디자인: 깔끔한 다크 모드 + 가독성 강화 */
-        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; background: #121212; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
-        header { padding: 15px; background: #1e1e1e; border-bottom: 1px solid #333; text-align: center; font-weight: bold; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; padding-left: 20px; padding-right: 20px;}
+        /* 깔끔한 디자인 & 가독성 최적화 */
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background: #121212; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
         
-        /* 매뉴얼 상태 표시등 */
-        #manual-status { font-size: 0.8rem; padding: 5px 10px; border-radius: 12px; background: #333; color: #aaa; }
-        #manual-status.ok { background: #1b5e20; color: #a5d6a7; border: 1px solid #2e7d32; }
-        #manual-status.fail { background: #b71c1c; color: #ffcdd2; border: 1px solid #c62828; }
+        /* 헤더 */
+        header { padding: 15px 20px; background: #1e1e1e; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .title { font-weight: bold; font-size: 1.1rem; color: #fff; }
+        #status-badge { font-size: 0.8rem; padding: 4px 10px; border-radius: 12px; background: #333; color: #aaa; transition: 0.3s; }
+        #status-badge.ok { background: #1b5e20; color: #a5d6a7; border: 1px solid #2e7d32; }
 
-        #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
+        /* 채팅창 */
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
         
-        .message { padding: 15px 20px; border-radius: 16px; max-width: 85%; word-break: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        /* 메시지 풍선 */
+        .message { padding: 15px 20px; border-radius: 18px; max-width: 85%; word-break: break-word; position: relative; }
         .ai { background: #2d2d2d; color: #ececec; align-self: flex-start; border-bottom-left-radius: 4px; border-left: 4px solid #4facfe; }
         .user { background: #0052cc; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
-        .system { background: #263238; color: #b0bec5; font-size: 0.9rem; text-align: center; align-self: center; width: auto; }
-        .error { background: #3d0000; color: #ff8a80; border: 1px solid #8a0000; text-align: center; }
+        .system { background: #263238; color: #b0bec5; font-size: 0.85rem; text-align: center; align-self: center; width: auto; border-radius: 20px; padding: 5px 15px; }
+        .error { background: #3d0000; color: #ff8a80; border: 1px solid #8a0000; }
 
-        /* 텍스트 꾸미기 (Bold, List 등) */
-        .message strong { color: #4facfe; font-weight: 700; }
-        .message ul { padding-left: 20px; margin: 5px 0; }
-        .message li { margin-bottom: 5px; }
+        /* 📝 마크다운 스타일링 (글씨 예쁘게) */
+        .ai strong { color: #4facfe; font-weight: 700; } /* 굵은 글씨 색상 */
+        .ai h1, .ai h2, .ai h3 { margin: 10px 0 5px 0; color: #fff; font-size: 1.1em; }
+        .ai ul, .ai ol { margin: 5px 0; padding-left: 20px; }
+        .ai li { margin-bottom: 4px; }
+        .ai p { margin: 0 0 10px 0; }
+        .ai p:last-child { margin: 0; }
 
+        /* 입력창 */
         #input-area { padding: 20px; background: #1e1e1e; border-top: 1px solid #333; display: flex; gap: 10px; }
-        input { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #2d2d2d; color: white; font-size: 16px; outline: none; transition: 0.2s; }
-        input:focus { border-color: #4facfe; }
-        button { padding: 0 25px; border-radius: 8px; border: none; background: #0052cc; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 1rem; }
-        button:hover { background: #0065ff; transform: translateY(-1px); }
-        button:disabled { background: #444; cursor: not-allowed; transform: none; }
+        input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: #2d2d2d; color: white; font-size: 16px; outline: none; }
+        input:focus { border-color: #4facfe; background: #333; }
+        button { padding: 0 25px; border-radius: 10px; border: none; background: #0052cc; color: white; font-weight: bold; cursor: pointer; font-size: 1rem; }
+        button:hover { background: #0065ff; }
+        button:disabled { background: #444; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
 <header>
-    <span>🤖 아동보호 상담 비서</span>
-    <span id="manual-status">📂 매뉴얼 확인 중...</span>
+    <span class="title">🤖 상담 매뉴얼 비서</span>
+    <span id="status-badge">📂 매뉴얼 로딩 중...</span>
 </header>
 
-<div id="chat-container">
+<div id="chat-box">
+    <div class="message system">
+        💡 <b>팁:</b> 질문을 구체적으로 하시면 매뉴얼 내용을 더 잘 찾아냅니다.
+    </div>
     <div class="message ai">
-        안녕하세요! 선생님의 업무 매뉴얼을 완벽하게 숙지했습니다.<br>
-        이제 궁금한 점을 물어보시면 <b>매뉴얼에 기반해서</b> 정확히 답변해 드릴게요.
+        안녕하세요! <b>매뉴얼(manual.txt)</b> 내용을 완벽히 숙지하고 대기 중입니다.<br>
+        궁금한 점을 물어보시면 <b>매뉴얼에 있는 내용 그대로</b> 답변해 드릴게요.
     </div>
 </div>
 
@@ -57,123 +66,24 @@
 <script type="module">
     import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
 
-    const chatBox = document.getElementById('chat-container');
+    // UI 요소
+    const chatBox = document.getElementById('chat-box');
     const input = document.getElementById('user-input');
     const btn = document.getElementById('btn-send');
-    const statusLabel = document.getElementById('manual-status');
+    const statusBadge = document.getElementById('status-badge');
 
     // 키 관리
-    const STORAGE_KEY = "FINAL_VICTORY_KEY";
+    const STORAGE_KEY = "SOCIAL_CARE_KEY_V2";
     let apiKey = localStorage.getItem(STORAGE_KEY);
     let manualContent = "";
 
-    // 1. 매뉴얼 파일 로드 (시작하자마자 실행)
+    // 1. 매뉴얼 로드 (시작 시 자동 실행)
     async function loadManual() {
         try {
-            const response = await fetch('./manual.txt');
-            if (response.ok) {
-                manualContent = await response.text();
-                statusLabel.innerText = "✅ 매뉴얼 로드됨";
-                statusLabel.className = "ok";
-                console.log("매뉴얼 로딩 성공 (길이: " + manualContent.length + ")");
-            } else {
-                throw new Error("파일 없음");
+            const res = await fetch('./manual.txt');
+            if (res.ok) {
+                manualContent = await res.text();
+                statusBadge.innerText = "✅ 매뉴얼 로드됨";
+                statusBadge.classList.add("ok");
+                console.log("매뉴얼 로딩 완료");
             }
-        } catch (e) {
-            statusLabel.innerText = "⚠️ 매뉴얼 없음 (manual.txt 확인)";
-            statusLabel.className = "fail";
-            addMessage("⚠️ <b>[경고]</b> 'manual.txt' 파일을 찾을 수 없습니다. 같은 폴더에 파일이 있는지 확인해주세요.", "system");
-        }
-    }
-    loadManual();
-
-    // 2. 메시지 화면 출력 및 꾸미기 (Formatter)
-    function formatText(text) {
-        // **굵게** -> <strong>굵게</strong>
-        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // * 목록 -> <li>목록
-        formatted = formatted.replace(/^\* (.*$)/gm, '<li>$1</li>');
-        // 줄바꿈 처리
-        formatted = formatted.replace(/\n/g, '<br>');
-        return formatted;
-    }
-
-    function addMessage(text, type) {
-        const div = document.createElement('div');
-        div.className = `message ${type}`;
-        div.innerHTML = type === 'ai' ? formatText(text) : text;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return div;
-    }
-
-    // 3. 전송 로직
-    async function handleSend() {
-        const text = input.value.trim();
-        if (!text) return;
-
-        // 키 입력 처리
-        if (!apiKey) {
-            if (text.startsWith("AIza")) {
-                apiKey = text;
-                localStorage.setItem(STORAGE_KEY, apiKey);
-                input.value = "";
-                addMessage("키가 저장되었습니다. 다시 질문해주세요.", "system");
-                setTimeout(() => location.reload(), 500);
-            } else {
-                alert("올바른 키를 입력해주세요.");
-            }
-            return;
-        }
-
-        input.value = "";
-        addMessage(text, "user");
-        const loadingMsg = addMessage("매뉴얼 검색 중...", "ai");
-        btn.disabled = true;
-
-        try {
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-            // [핵심] AI에게 역할을 강력하게 부여 (프롬프트 엔지니어링)
-            const prompt = `
-            당신은 '아동보호전문기관 상담원'을 위한 업무 보조 AI입니다.
-            반드시 아래 [업무 매뉴얼]에 있는 내용만을 바탕으로 답변해야 합니다.
-            
-            [규칙]
-            1. 매뉴얼에 없는 내용은 "매뉴얼에 해당 내용이 없습니다"라고 솔직하게 말하세요. 추측하지 마세요.
-            2. 답변은 핵심만 요약해서, 읽기 편하게 번호나 강조(Bold)를 써서 정리하세요.
-            3. 말투는 정중하고 전문적인 '해요체'를 쓰세요.
-
-            [업무 매뉴얼 데이터]
-            ${manualContent}
-
-            [사용자 질문]
-            ${text}
-            `;
-
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            const aiText = response.text();
-
-            loadingMsg.innerHTML = formatText(aiText);
-
-        } catch (error) {
-            loadingMsg.className = "message error";
-            loadingMsg.innerHTML = `오류 발생: ${error.message}`;
-            if (error.message.includes("API key")) localStorage.removeItem(STORAGE_KEY);
-        } finally {
-            btn.disabled = false;
-            input.focus();
-        }
-    }
-
-    btn.addEventListener('click', handleSend);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSend(); });
-
-    // 시작 시 키 확인
-    if (!apiKey) addMessage("🔑 <b>새 프로젝트 API 키</b>를 입력해주세요.", "system");
-
-</script>
-</body>
-</html>
