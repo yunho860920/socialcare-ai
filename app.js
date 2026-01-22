@@ -1,5 +1,5 @@
-// 👇 final7 로 변경!
-import { AIEngine } from './ai-engine.js?v=final7';
+// 👇 final8 로 변경!
+import { AIEngine } from './ai-engine.js?v=final8';
 
 class App {
     constructor() {
@@ -9,15 +9,14 @@ class App {
         this.isSending = false;
         this.init();
     }
-
+    // ... (나머지 코드는 그대로 두셔도 됩니다) ...
     async init() {
         this.initElements();
         this.bindEvents();
         this.updateOnlineStatus(true);
         this.startAI();
     }
-    
-    // ... (이하 코드는 기존과 동일, 편의를 위해 생략하지 않고 전체 제공) ...
+
     initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
@@ -51,11 +50,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `무료 모델(Exp) 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `최종 보안 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. Gemini 2.0 Flash (무료 버전)입니다. 이제 정말 대화가 가능합니다!');
+                        this.appendMessage('ai', '안녕하세요. 새 보안 키가 적용된 Gemini 비서입니다. 이제 안심하고 질문하세요!');
                     }, 500);
                 }
             });
