@@ -1,10 +1,11 @@
 /**
- * app.js - 전송 기능 강화 버전
+ * app.js - 버튼 및 엔진 연결 보장 버전
  */
 class App {
     constructor() {
         this.isSending = false;
-        this.init();
+        // 엔진 파일이 로드될 때까지 잠시 대기 후 시작
+        window.onload = () => this.init();
     }
 
     async init() {
@@ -13,39 +14,35 @@ class App {
         this.btnSend = document.getElementById('btn-send');
         this.statusBadge = document.getElementById('status-badge');
 
-        const STORAGE_ID = 'FINAL_ULTIMATE_KEY';
+        const STORAGE_ID = 'SOCIAL_CARE_FINAL_KEY_PRO';
         let savedKey = localStorage.getItem(STORAGE_ID);
 
         if (!savedKey) {
-            savedKey = prompt("🔑 구글 API Studio에서 '+ 새 프로젝트 만들기'로 받은 새 키를 입력하세요:");
-            if (savedKey) {
-                localStorage.setItem(STORAGE_ID, savedKey.trim());
-                location.reload();
-            }
-        } else {
-            // [정밀 수정] 온라인 상태 강제 표시
+            savedKey = prompt("🔑 새 프로젝트에서 만든 API 키를 입력하세요:");
+            if (savedKey) localStorage.setItem(STORAGE_ID, savedKey.trim());
+        }
+
+        if (window.AIEngine) {
+            this.ai = new window.AIEngine(savedKey);
+            await this.ai.initialize();
             if (this.statusBadge) {
                 this.statusBadge.innerText = '🟢 온라인';
                 this.statusBadge.style.color = '#10b981';
             }
-            this.ai = new AIEngine(savedKey);
-            await this.ai.initialize(() => {});
             this.bindEvents();
+        } else {
+            alert("시스템 로딩 오류. 새로고침(F5) 해주세요.");
         }
     }
 
     bindEvents() {
-        // 전송 버튼 클릭 활성화
+        // 전송 버튼 강제 활성화
         this.btnSend.onclick = (e) => {
             e.preventDefault();
             this.handleSend();
         };
-        // 엔터키 활성화
         this.chatInput.onkeydown = (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.handleSend();
-            }
+            if (e.key === 'Enter') this.handleSend();
         };
     }
 
@@ -57,7 +54,7 @@ class App {
         this.isSending = true;
         this.chatInput.value = "";
         this.appendMessage('user', text);
-        const aiMsg = this.appendMessage('ai', '분석 중...');
+        const aiMsg = this.appendMessage('ai', '답변 생성 중...');
 
         try {
             await this.ai.generateResponse(text, (chunk) => {
@@ -65,7 +62,7 @@ class App {
                 this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
             });
         } catch (e) {
-            aiMsg.innerText = "연결을 확인해주세요.";
+            aiMsg.innerText = "❌ 오류: " + e.message;
         } finally {
             this.isSending = false;
         }
