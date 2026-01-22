@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>정밀 독해 챗봇</title>
+    <title>업무용 챗봇 (Zero Temp)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -29,12 +29,12 @@
 <body>
 
 <div id="progress-container"><div id="progress-bar"></div></div>
-<header><div class="title">🔍 정밀 독해 챗봇</div></header>
+<header><div class="title">🤖 매뉴얼 팩트 뷰어</div></header>
 
 <div id="chat-box"></div>
 
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="시스템 준비 중..." disabled>
+    <input type="text" id="user-input" placeholder="엔진 시동 중..." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
@@ -44,8 +44,8 @@
     
     let engine = null;
     let manualContent = "";
-    let isModelReady = false;
-
+    
+    // UI 요소
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('btn-send');
@@ -63,27 +63,26 @@
     async function initialize() {
         progressContainer.style.display = 'block';
         try {
-            addMessage("system", "📂 매뉴얼 파일 확인 중...");
+            // 1. 매뉴얼 로드 (캐시 방지 적용)
             const res = await fetch('manual.txt?v=' + Date.now());
             if(!res.ok) throw new Error("manual.txt 파일 없음");
             manualContent = await res.text();
-            addMessage("system", "✅ 매뉴얼 로드 완료.");
-
-            addMessage("system", "🚀 AI 엔진 초기화 중... (잠시만 기다려주세요)");
+            
+            // 2. 엔진 초기화
+            addMessage("system", "🚀 AI 엔진 초기화 중...");
             engine = await CreateMLCEngine(SELECTED_MODEL, { 
                 initProgressCallback: (p) => { 
                     progressBar.style.width = `${p.progress * 100}%`;
-                    if(p.progress === 1 && !isModelReady) { 
-                        isModelReady = true;
-                        addMessage("system", "✅ 질문 준비 완료."); 
-                        userInput.disabled = false; 
-                        sendBtn.disabled = false;
-                        userInput.placeholder = "질문을 입력하세요...";
-                        userInput.focus();
-                        progressContainer.style.display = 'none';
-                    } 
                 } 
             });
+            
+            // 3. 준비 완료
+            progressContainer.style.display = 'none';
+            addMessage("system", "✅ 준비 완료. 질문해 주세요."); 
+            userInput.disabled = false; 
+            sendBtn.disabled = false;
+            userInput.placeholder = "질문을 입력하세요 (예: 신체학대 정의)";
+            userInput.focus();
 
         } catch (e) { addMessage("system", "🚨 오류: " + e.message); }
     }
@@ -92,19 +91,19 @@
         const text = userInput.value.trim(); if (!text) return;
         addMessage("user", text); userInput.value = "";
         
-        // [수정 핵심] AI가 딴소리 못하게 '국어 문제 풀이' 방식으로 변경
-        // 30,000자는 너무 많아서 20,000자로 줄여서 입력 (과부하 방지)
+        // [최적화된 프롬프트]
+        // 역할놀이 제거, 오직 '본문 기반 찾기' 명령만 수행
         const messages = [
             { 
                 role: "user", 
                 content: `
-[지시사항]
-다음 제공되는 [매뉴얼 본문]을 읽고, [질문]에 대한 답을 본문에서 찾아 한국어로 답변하세요.
-본문에 없는 내용은 절대 지어내지 말고 "매뉴얼에 없습니다"라고 말하세요.
-인사말이나 사족을 붙이지 말고 정답만 말하세요.
+[지침]
+아래 제공된 [매뉴얼] 텍스트 내에서 [질문]에 대한 답을 찾아 그대로 출력하세요.
+매뉴얼에 없는 내용은 "내용 없음"이라고만 답하세요.
+생각이나 의견을 덧붙이지 마세요.
 
-[매뉴얼 본문]
-${manualContent.substring(0, 20000)}
+[매뉴얼]
+${manualContent.substring(0, 15000)}
 
 [질문]
 ${text}
@@ -116,7 +115,9 @@ ${text}
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
                 messages: messages,
-                temperature: 0.1, // 창의성 억제
+                temperature: 0.0,      // [핵심] 무조건 0 (창의성 제거)
+                repetition_penalty: 1.2, // [핵심] 반복 억제 강화
+                top_p: 0.8,            // [핵심] 확률 낮은 단어 배제
                 stream: true
             });
 
@@ -130,7 +131,7 @@ ${text}
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
 
-        } catch (e) { addMessage("system", "답변 실패"); }
+        } catch (e) { addMessage("system", "처리 실패"); }
     }
 
     sendBtn.onclick = sendMessage;
