@@ -1,51 +1,194 @@
-# # 아동학대 판단 기준 및 유형별 세부 내용
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocialCare AI - 맥락 인식 버전</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
+        
+        header { padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .title { font-weight: 700; font-size: 1.1rem; color: #fff; display: flex; align-items: center; gap: 10px; }
+        
+        .status-badge { font-size: 0.8rem; padding: 4px 10px; border-radius: 12px; background: #333; color: #aaa; border: 1px solid #444; }
+        .status-badge.active { background: #1b5e20; color: #a5d6a7; border-color: #2e7d32; }
 
-## ## 1. 아동학대의 기본 정의
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 0.95rem; }
+        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
+        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; align-self: flex-start; }
+        .user { background: var(--accent-color); color: white; align-self: flex-end; }
+        
+        .ai strong { color: #64b5f6; }
+        .ai ul, .ai ol { padding-left: 20px; margin: 5px 0; }
 
-- **법적 근거**: 아동복지법 제3조 제7호
-- **정의**: 보호자를 포함한 성인이 아동의 건강 또는 복지를 해치거나 정상적 발달을 저해할 수 있는 신체적·정신적·성적 폭력이나 가혹행위를 하는 것, 그리고 아동의 보호자가 아동을 유기하거나 방임하는 것을 말함.
+        #input-area { padding: 20px; background: var(--chat-bg); border-top: 1px solid #333; display: flex; gap: 10px; }
+        input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; font-size: 16px; outline: none; }
+        button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; white-space: nowrap; }
+        button:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
+        
+        #progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #333; display: none; }
+        #progress-bar { height: 100%; background: #4facfe; width: 0%; transition: width 0.3s; }
+    </style>
+</head>
+<body>
 
-## ## 2. 유형별 판단 기준 (4대 유형)
+<div id="progress-container"><div id="progress-bar"></div></div>
 
-### ### ① 신체학대 (Physical Abuse)
+<header>
+    <div class="title">🛡️ 보안 안심 매뉴얼 비서</div>
+    <span id="status-text" class="status-badge">모델 준비 중...</span>
+</header>
 
-- **정의**: 보호자를 포함한 성인이 아동에게 신체적 손상을 입히거나 신체 건강 및 발달을 해치는 모든 행위.
-- **주요 판단 지표**:
-    - 도구(몽둥이, 벨트, 담뱃불 등)를 사용한 폭행.
-    - 뺨을 때리는 등 신체에 직접적인 위해를 가하는 행위.
-    - 완력을 사용하여 아동을 밀치거나 던지는 행위.
-    - **주의사항**: 흔적이 남지 않더라도 신체적 고통을 주는 행위는 학대로 판단될 수 있음.
+<div id="chat-box"></div>
 
-### ### ② 정서학대 (Emotional Abuse)
+<div id="input-area">
+    <input type="text" id="user-input" placeholder="AI 엔진을 다운로드하고 있습니다..." disabled>
+    <button id="btn-send" disabled>전송</button>
+</div>
 
-- **정의**: 아동의 정신건강 및 발달에 해를 끼치는 언어적 폭력, 정서적 위협, 가혹행위 등.
-- **주요 판단 지표**:
-    - 아동에게 삭히기 힘든 욕설, 모욕, 위협을 가하는 행위.
-    - 아동을 가족이나 집단에서 소외시키거나 고립시키는 행위.
-    - 다른 아동과 비교하며 지속적으로 비난하는 행위.
-    - 가정폭력을 아동에게 지속적으로 노출시키는 행위 (목격형 학대).
+<script type="module">
+    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
-### ### ③ 성학대 (Sexual Abuse)
+    const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 
-- **정의**: 성인이 자신의 성적 만족을 위해 아동을 이용하는 모든 행위.
-- **주요 판단 지표**:
-    - 아동과의 모든 성적 접촉 및 성기 노출.
-    - 아동에게 음란물을 보여주거나 성적 수치심을 주는 언행.
-    - 아동을 이용한 음란물 제작 및 유포.
-    - **판단 원칙**: 아동의 동의 여부와 상관없이 성인이 아동을 대상으로 한 성적 행위는 무조건 학대로 간주함.
+    let engine = null;
+    let manualContent = "";
+    // [핵심] 대화 내용을 기억할 저장소 추가
+    let conversationHistory = []; 
+    
+    const chatBox = document.getElementById('chat-box');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('btn-send');
+    const statusText = document.getElementById('status-text');
+    const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
 
-### ### ④ 방임 및 유기 (Neglect & Abandonment)
+    function addMessage(type, text) {
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        if (type === 'ai') div.innerHTML = marked.parse(text);
+        else div.textContent = text;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
 
-- **정의**: 아동에게 필요한 보호와 양육을 소홀히 하여 아동의 건강이나 안전을 위협하는 행위.
-- **주요 판단 지표**:
-    - **물리적 방임**: 기본적인 의식주를 제공하지 않거나 불결한 환경에 방치하는 경우.
-    - **교육적 방임**: 무단결석을 방치하거나 의무교육을 이행하지 않는 경우.
-    - **의료적 방임**: 필요한 예방접종이나 질병 치료를 소홀히 하는 경우.
-    - **유기**: 아동을 보호 시설이나 길거리에 버리는 행위.
+    async function initialize() {
+        progressContainer.style.display = 'block';
+        try {
+            addMessage("system", "📂 manual.txt 파일 읽는 중...");
+            const res = await fetch('manual.txt?v=' + Date.now());
+            if (!res.ok) throw new Error("manual.txt 파일이 없습니다.");
+            manualContent = await res.text();
+            addMessage("system", "✅ 매뉴얼 로드 완료.");
 
-## ## 3. 학대 판단 시 고려사항 (종합 판정)
+            addMessage("system", "🚀 AI 엔진 구동 시작... (잠시만 기다려주세요)");
+            
+            engine = await CreateMLCEngine(
+                SELECTED_MODEL,
+                {
+                    initProgressCallback: (report) => {
+                        const percent = report.progress * 100;
+                        progressBar.style.width = `${percent}%`;
+                        statusText.textContent = `다운로드: ${Math.round(percent)}%`;
+                        if (report.progress === 1.0) statusText.textContent = "🟢 대화 준비 완료";
+                    }
+                }
+            );
 
-- **행위의 반복성**: 일회성인지 지속적·반복적인지 확인.
-- **상해의 정도**: 아동에게 남은 신체적·정신적 피해의 심각성.
-- **행위자의 의도**: 고의성 여부를 파악하되, '훈육' 목적이라 하더라도 방법이 객관적으로 과도하면 학대로 판단함.
-- **아동의 연령 및 발달단계**: 동일한 행위라도 아동의 연령에 따라 위해도가 달라질 수 있음.
+            progressContainer.style.display = 'none';
+            statusText.classList.add('active');
+            statusText.textContent = "🟢 보안 연결됨";
+            
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.placeholder = "질문을 입력하세요...";
+            userInput.focus();
+            
+            addMessage("ai", "안녕하세요. 선생님의 PC에서 작동하는 보안 AI입니다. **앞선 대화 내용을 기억**하며 매뉴얼 기반으로 답변하겠습니다.");
+
+        } catch (error) {
+            console.error(error);
+            addMessage("system", `🚨 오류 발생: ${error.message}`);
+        }
+    }
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        addMessage("user", text);
+        userInput.value = "";
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.textContent = "생각 중...";
+
+        try {
+            // 1. 사용자 질문을 기억(History)에 저장
+            conversationHistory.push({ role: "user", content: text });
+
+            // 2. 프롬프트 구성 (매뉴얼 + 최근 대화 내역 2개만 전송 - 메모리 절약)
+            // 너무 많은 대화를 넣으면 1B 모델이 헷갈려하므로 최근 2~3턴만 유지
+            const recentHistory = conversationHistory.slice(-4); 
+
+            const messages = [
+                { 
+                    role: "system", 
+                    content: `너는 아동보호전문기관의 매뉴얼 AI다. 
+                    아래 [매뉴얼] 내용을 기반으로 한국어로 답변해.
+                    
+                    [답변 규칙]
+                    1. 질문과 관련된 내용을 매뉴얼에서 찾아 답변해.
+                    2. '이전 대화 내용'을 참고해서 맥락을 이어가. (예: '그것'이라고 물으면 앞의 주제를 말하는 것임)
+                    3. 똑같은 문장을 반복하지 마.
+                    4. 매뉴얼에 없는 내용은 모른다고 해.` 
+                },
+                { 
+                    role: "user", 
+                    content: `### 매뉴얼 데이터 ###\n${manualContent.substring(0, 20000)}` 
+                },
+                ...recentHistory // [중요] 여기에 이전 대화 기록이 들어감
+            ];
+
+            let fullResponse = "";
+            const chunks = await engine.chat.completions.create({
+                messages,
+                temperature: 0.1, 
+                repetition_penalty: 1.2, // [중요] 앵무새 방지 (같은 말 반복 금지)
+                stream: true,
+            });
+
+            const aiDiv = document.createElement('div');
+            aiDiv.className = 'message ai';
+            chatBox.appendChild(aiDiv);
+
+            for await (const chunk of chunks) {
+                const content = chunk.choices[0]?.delta?.content || "";
+                fullResponse += content;
+                aiDiv.innerHTML = marked.parse(fullResponse);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            // 3. AI 답변도 기억(History)에 저장
+            conversationHistory.push({ role: "assistant", content: fullResponse });
+
+        } catch (error) {
+            addMessage("system", "오류: " + error.message);
+        } finally {
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            sendBtn.textContent = "전송";
+            userInput.focus();
+        }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    initialize();
+</script>
+
+</body>
+</html>
