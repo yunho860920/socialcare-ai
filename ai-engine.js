@@ -1,18 +1,15 @@
 /**
- * ai-engine.js - 콘솔 로그 복구 및 제미나이 연결 최종본
+ * ai-engine.js - 제미나이 API 호출 안정화 버전
  */
 export class AIEngine {
     constructor() {
-        // [필수] 복사하신 AIzaSy... 키를 여기에 정확히 넣으세요.
-        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto"; 
+        // [필수] 발급받으신 키를 여기에 꼭 넣어주세요!
+        this.apiKey = "YOUR_GEMINI_API_KEY"; 
         this.localManualContent = "";
     }
 
     async initialize(onProgress) {
-        // 1. 파일부터 읽기 (성공 시 콘솔에 로그가 찍힙니다)
         await this.fetchManualFile();
-        
-        // 2. 초기화 완료 표시
         onProgress({ progress: 1.0 });
     }
 
@@ -21,24 +18,20 @@ export class AIEngine {
             const response = await fetch('./manual.txt');
             if (response.ok) {
                 this.localManualContent = await response.text();
-                // 이 로그가 다시 콘솔에 나타나게 됩니다.
                 console.log("[FILE_CHECK] manual.txt 로드 성공");
-            } else {
-                console.error("[FILE_CHECK] manual.txt 파일을 찾을 수 없습니다 (404)");
             }
         } catch (e) {
-            console.error("[FILE_CHECK] 파일 로드 중 오류 발생:", e);
+            console.error("파일 로드 실패");
         }
     }
 
     async generateResponse(userInput, onChunk) {
-        // 제미나이 API 주소 (최신 버전 형식)
+        // 주소 형식을 가장 확실한 규격으로 고정
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
 
-        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 한국어로 답변하라.
+        const promptText = `너는 아동보호전문기관 업무 비서다. 제공된 매뉴얼을 근거로 한국어로 답변하라.
         
-[매뉴얼 내용]
-${this.localManualContent || "매뉴얼 데이터 없음"}
+매뉴얼: ${this.localManualContent}
 
 질문: ${userInput}`;
 
@@ -53,17 +46,17 @@ ${this.localManualContent || "매뉴얼 데이터 없음"}
 
             const data = await response.json();
             
-            if (data.error) {
-                throw new Error(data.error.message);
+            // 답변 추출 로직 강화
+            if (data.candidates && data.candidates[0].content) {
+                const fullText = data.candidates[0].content.parts[0].text;
+                if (onChunk) onChunk(fullText);
+                return fullText;
+            } else {
+                throw new Error("답변을 생성하지 못했습니다.");
             }
-
-            const fullText = data.candidates[0].content.parts[0].text;
-            
-            if (onChunk) onChunk(fullText);
-            return fullText;
         } catch (error) {
             console.error("Gemini Error:", error);
-            return "오류가 발생했습니다: " + error.message;
+            return "오류: " + error.message;
         }
     }
 }
