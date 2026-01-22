@@ -1,13 +1,17 @@
 /**
- * ai-engine.js - 구글 공식 SDK 사용 버전 (오류 해결 끝판왕)
+ * ai-engine.js - 라이브러리 주소 직접 호출 (오프라인 해결)
  */
-// 👇 공식 도구를 가져옵니다.
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// 👇 [핵심 수정] 짧은 이름 대신, 인터넷 전체 주소를 직접 적습니다.
+import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
 
 export class AIEngine {
     constructor(apiKey) {
         this.apiKey = apiKey.trim();
-        this.genAI = new GoogleGenerativeAI(this.apiKey);
+        // 키가 있으면 SDK를 즉시 로드합니다.
+        if (this.apiKey) {
+            this.genAI = new GoogleGenerativeAI(this.apiKey);
+        }
         this.localManualContent = "";
     }
 
@@ -27,8 +31,12 @@ export class AIEngine {
 
     async generateResponse(userInput, onChunk) {
         try {
-            // [핵심] 주소를 직접 치지 않고, 공식 도구가 알아서 모델을 찾아옵니다.
-            // 가장 최신이며 안정적인 'gemini-1.5-flash'를 호출합니다.
+            // 안전장치: 키가 없으면 에러
+            if (!this.genAI) {
+                this.genAI = new GoogleGenerativeAI(this.apiKey);
+            }
+
+            // 공식 도구로 모델 소환 (가장 안정적인 1.5 Flash)
             const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
             const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
@@ -37,25 +45,21 @@ export class AIEngine {
 
             질문: ${userInput}`;
 
-            // 스트리밍 방식으로 답변을 요청합니다.
+            // 답변 요청
             const result = await model.generateContentStream(promptText);
 
             let fullText = "";
-            
             for await (const chunk of result.stream) {
                 const chunkText = chunk.text();
                 fullText += chunkText;
                 if (onChunk) onChunk(fullText);
             }
-
             return fullText;
 
         } catch (error) {
-            // 에러가 나면 여기서 잡습니다.
-            let msg = "오류 발생: " + error.message;
-            
-            if (msg.includes("404")) msg = "⛔ 모델을 찾을 수 없습니다. (하지만 SDK를 쓰면 이 확률은 낮습니다)";
-            if (msg.includes("API key")) msg = "⛔ API 키가 유효하지 않습니다. 새로고침 후 다시 입력해주세요.";
+            let msg = "오류: " + error.message;
+            if (msg.includes("API key")) msg = "⛔ API 키가 틀렸습니다. 다시 입력해주세요.";
+            if (msg.includes("404")) msg = "⛔ 모델 연결 실패. (잠시 후 다시 시도해주세요)";
             
             if (onChunk) onChunk(msg);
             throw new Error(msg);
