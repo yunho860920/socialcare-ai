@@ -3,18 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>업무용 챗봇</title>
+    <title>업무용 챗봇 (요약 모드)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
         body { font-family: 'Pretendard', sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
+        
         header { padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         .title { font-weight: 700; font-size: 1.1rem; color: #fff; }
+        
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
         .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 0.95rem; }
         .ai { background: #2d2d2d; border-left: 3px solid #4facfe; }
         .user { background: var(--accent-color); color: white; align-self: flex-end; }
         .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
+        
         #input-area { padding: 20px; background: var(--chat-bg); border-top: 1px solid #333; display: flex; gap: 10px; }
         input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; outline: none; }
         button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; }
@@ -26,7 +29,7 @@
 <body>
 
 <div id="progress-container"><div id="progress-bar"></div></div>
-<header><div class="title">🤖 업무용 챗봇</div></header>
+<header><div class="title">🤖 업무용 챗봇 (요약)</div></header>
 
 <div id="chat-box"></div>
 
@@ -37,13 +40,11 @@
 
 <script type="module">
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
-    
     const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
     
     let engine = null;
     let manualContent = "";
-    // [수정 1] 중복 메시지 방지용 플래그
-    let isModelReady = false; 
+    let isModelReady = false;
 
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
@@ -62,27 +63,19 @@
     async function initialize() {
         progressContainer.style.display = 'block';
         try {
-            // 1. 매뉴얼 읽기
             addMessage("system", "📂 매뉴얼 파일 확인 중...");
             const res = await fetch('manual.txt?v=' + Date.now());
             if(!res.ok) throw new Error("manual.txt 파일 없음");
-            
             manualContent = await res.text();
-            
-            // [수정 2] 매뉴얼이 잘 읽혔는지 콘솔로 확인 (F12에서 확인 가능)
-            console.log("매뉴얼 길이:", manualContent.length); 
-
             addMessage("system", "✅ 매뉴얼 로드 완료.");
 
-            // 2. 엔진 시동
             addMessage("system", "🚀 AI 엔진 초기화 중... (잠시만 기다려주세요)");
             engine = await CreateMLCEngine(SELECTED_MODEL, { 
                 initProgressCallback: (p) => { 
                     progressBar.style.width = `${p.progress * 100}%`;
-                    // [수정 3] 완료 메시지가 딱 한 번만 뜨도록 조건 강화
                     if(p.progress === 1 && !isModelReady) { 
                         isModelReady = true;
-                        addMessage("system", "✅ 업무 준비 완료. 질문해 주세요."); 
+                        addMessage("system", "✅ 업무용 챗봇 준비 완료."); 
                         userInput.disabled = false; 
                         sendBtn.disabled = false;
                         userInput.placeholder = "질문을 입력하세요...";
@@ -99,19 +92,19 @@
         const text = userInput.value.trim(); if (!text) return;
         addMessage("user", text); userInput.value = "";
         
-        // [수정 4] 매뉴얼 인식 범위를 30,000자로 늘리고 프롬프트를 부드럽게 변경
-        const simpleMessages = [
+        // [수정 포인트] "짧게 요약해라"라는 지시를 명확하게 추가
+        const messages = [
             { 
                 role: "system", 
-                content: "너는 아동보호전문기관의 상담 업무를 돕는 AI 챗봇이야. 아래 [매뉴얼 내용]을 잘 읽고 사용자의 질문에 대해 친절하고 정확하게 답변해줘." 
+                content: "너는 아동보호전문기관 사회복지사야. 아래 [매뉴얼]을 보고 질문에 답해줘. 답변은 핵심 내용만 요약해서 3~5줄 이내로 짧게 작성해." 
             },
             { 
                 role: "user", 
                 content: `
-[매뉴얼 내용]
-${manualContent.substring(0, 30000)}
+### 매뉴얼 내용 ###
+${manualContent.substring(0, 25000)}
 
-[질문]
+### 질문 ###
 ${text}
 ` 
             }
@@ -120,9 +113,8 @@ ${text}
         try {
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
-                messages: simpleMessages,
-                temperature: 0.1, 
-                repetition_penalty: 1.1, 
+                messages: messages,
+                temperature: 0.1, // 안정적인 답변을 위해 0.1 유지
                 stream: true
             });
 
