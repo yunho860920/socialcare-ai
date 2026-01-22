@@ -1,17 +1,15 @@
 /**
- * ai-engine.js - Gemini API 주소 오류 및 파일 로드 수정 버전
+ * ai-engine.js - 호환성 문제 해결 및 안정화 버전 (Gemini Pro)
  */
 export class AIEngine {
     constructor() {
-        // [필수] 복사하신 AIzaSy... 키를 여기에 넣으세요.
+        // [필수] 복사해둔 API 키를 여기에 넣으세요!
         this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto"; 
         this.localManualContent = "";
     }
 
     async initialize(onProgress) {
-        // 1. 파일 로드부터 수행
         await this.fetchManualFile();
-        // 2. 초기화 완료 보고
         onProgress({ progress: 1.0 });
     }
 
@@ -28,8 +26,8 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // [수정] 모델 경로를 더 안정적인 v1 버전으로 변경
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+        // [핵심 수정] 모델명을 'gemini-1.5-flash'에서 'gemini-pro'로 변경하여 404 오류 방지
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${this.apiKey}`;
 
         const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 한국어로 답변하라.
         
@@ -49,17 +47,23 @@ ${this.localManualContent || "매뉴얼 데이터 없음"}
 
             const data = await response.json();
             
+            // 에러 발생 시 상세 원인 출력
             if (data.error) {
+                console.error("Gemini API Error:", data.error);
                 throw new Error(data.error.message);
             }
 
-            const fullText = data.candidates[0].content.parts[0].text;
-            
-            if (onChunk) onChunk(fullText);
-            return fullText;
+            if (data.candidates && data.candidates.length > 0) {
+                const fullText = data.candidates[0].content.parts[0].text;
+                if (onChunk) onChunk(fullText);
+                return fullText;
+            } else {
+                return "답변을 생성할 수 없습니다. (데이터 형식 오류)";
+            }
+
         } catch (error) {
-            console.error("Gemini Error:", error);
-            return "오류가 발생했습니다: " + error.message;
+            console.error("System Error:", error);
+            return "시스템 오류가 발생했습니다: " + error.message;
         }
     }
 }
