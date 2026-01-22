@@ -1,10 +1,9 @@
-// 👇 버전을 v_button_fix 로 변경
-import { AIEngine } from './ai-engine.js?v=v_button_fix';
+// 👇 버전을 sdk_version 으로 변경!
+import { AIEngine } from './ai-engine.js?v=sdk_version';
 
 class App {
     constructor() {
         this.isSending = false;
-        // 페이지 로드 즉시 실행 보장
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
         } else {
@@ -16,12 +15,13 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        const STORAGE_KEY = 'gemini_final_key_auto'; 
+        const STORAGE_KEY = 'gemini_sdk_key_final'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
+        // 키가 없으면 입력창 띄우기 (이전과 동일)
         if (!savedKey) {
             setTimeout(() => {
-                savedKey = prompt("🔑 구글 API 키를 입력하세요 (전송 버튼 활성화 버전):");
+                savedKey = prompt("🔑 [SDK 모드] 구글 API 키를 입력하세요:");
                 if (savedKey && savedKey.trim().length > 10) {
                     localStorage.setItem(STORAGE_KEY, savedKey.trim());
                     this.ai = new AIEngine(savedKey);
@@ -41,10 +41,7 @@ class App {
     initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
-        
-        // [중요] 전송 버튼을 확실하게 찾습니다.
         this.btnSend = document.getElementById('btn-send');
-        
         this.statusBadge = document.getElementById('status-badge');
         this.aiLoading = document.getElementById('ai-loading');
         this.progressFill = document.getElementById('progress-fill');
@@ -52,27 +49,16 @@ class App {
     }
 
     bindEvents() {
-        // [핵심] 버튼 클릭 이벤트를 'onclick' 대신 'addEventListener'로 강력하게 부착
         if (this.btnSend) {
             this.btnSend.addEventListener('click', (e) => {
-                e.preventDefault(); // 페이지 새로고침 방지
-                console.log("🖱️ 전송 버튼 클릭됨!"); // 클릭 확인용 로그
+                e.preventDefault();
                 this.handleSend();
             });
-            
-            // 마우스 커서를 손가락 모양으로 강제 변경 (CSS가 안 먹혀있을 경우 대비)
             this.btnSend.style.cursor = 'pointer';
-        } else {
-            console.error("⛔ 'btn-send' 아이디를 가진 버튼을 찾을 수 없습니다. HTML을 확인해주세요.");
         }
-
-        // 엔터키 입력 시 전송
         this.chatInput.onkeydown = (e) => {
             if (e.isComposing || e.keyCode === 229) return;
-            if (e.key === 'Enter' && !e.shiftKey) { 
-                e.preventDefault(); 
-                this.handleSend(); 
-            }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
         };
     }
 
@@ -90,11 +76,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `AI 준비 중... (${progress}%)`;
+                this.loadingText.innerText = `공식 SDK 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 버튼이 활성화되었습니다. 질문을 입력하고 파란 버튼을 눌러보세요.');
+                        this.appendMessage('ai', '안녕하세요. 구글 공식 도구(SDK)로 연결되었습니다. 이제 정말 끊기지 않습니다!');
                     }, 500);
                 }
             });
@@ -102,28 +88,22 @@ class App {
     }
 
     async handleSend() {
-        // 전송 중이면 중복 클릭 방지 (하지만 에러나면 풀리게 설정)
         if (this.isSending) return;
-        
         const text = this.chatInput.value.trim();
-        if (!text) {
-            alert("내용을 입력해주세요!"); // 빈 내용일 때 알림
-            return;
-        }
+        if (!text) { alert("내용을 입력해주세요!"); return; }
 
         this.isSending = true;
-        this.chatInput.value = ""; // 입력창 비우기
+        this.chatInput.value = "";
         this.appendMessage('user', text);
         
-        const aiMsg = this.appendMessage('ai', '답변 작성 중...');
+        const aiMsg = this.appendMessage('ai', '...');
         
         try {
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
         } catch (e) { 
             aiMsg.innerText = "오류: " + e.message; 
         } finally { 
-            this.isSending = false; // [중요] 전송이 끝나면 버튼 잠금 해제
-            // 채팅창 스크롤 맨 아래로
+            this.isSending = false; 
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
     }
