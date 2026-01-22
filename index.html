@@ -3,188 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 매뉴얼 비서</title>
+    <title>상담 매뉴얼 비서 (안정화 버전)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
-        body { font-family: 'Pretendard', sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; line-height: 1.6; }
-        
-        /* 헤더 */
-        header { padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid #333; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-        .title { font-weight: 700; font-size: 1.1rem; color: #fff; }
-        
-        .controls { display: flex; gap: 8px; align-items: center; }
-        select#model-select { padding: 8px; border-radius: 5px; background: #333; color: white; border: 1px solid #444; font-size: 0.8rem; cursor: pointer; }
-        #api-key-input { padding: 8px; border-radius: 5px; border: 1px solid #444; background: #333; color: white; width: 150px; font-size: 0.8rem; }
-        #btn-save-key { padding: 8px 15px; border-radius: 5px; background: #2e7d32; color: white; border: none; cursor: pointer; font-size: 0.8rem; }
-
-        /* 채팅 영역 */
+        body { background: #121212; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        header { padding: 15px; background: #1e1e1e; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        #api-key-input { padding: 8px; background: #333; border: 1px solid #444; color: white; border-radius: 4px; width: 200px; }
+        button { padding: 8px 15px; background: #0052cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #444; }
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 0.95rem; }
-        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
-        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; align-self: flex-start; }
-        .user { background: var(--accent-color); color: white; align-self: flex-end; }
-        
-        /* 에러 메시지 스타일 강화 */
-        .error-msg { background: #b71c1c; color: #ffcdd2; border: 1px solid #ff8a80; padding: 10px; border-radius: 8px; font-size: 0.9rem; margin: 10px 0; }
-        .ai strong { color: #64b5f6; }
-        .ai ul, .ai ol { padding-left: 20px; margin: 5px 0; }
-
-        #input-area { padding: 20px; background: var(--chat-bg); border-top: 1px solid #333; display: flex; gap: 10px; }
-        input#user-input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; font-size: 16px; outline: none; }
-        button#btn-send { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
-        
-        .loader { display: inline-block; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 5px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .message { padding: 12px; border-radius: 8px; max-width: 80%; }
+        .ai { background: #2d2d2d; border-left: 3px solid #4facfe; }
+        .user { background: #0052cc; align-self: flex-end; }
+        .system { background: #333; color: #aaa; align-self: center; font-size: 0.9em; }
+        .error { background: #b71c1c; color: #ffcdd2; text-align: center; }
+        #input-area { padding: 20px; border-top: 1px solid #333; display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 15px; background: #2d2d2d; border: 1px solid #444; color: white; border-radius: 4px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="title">🤖 상담 매뉴얼 비서</div>
-    <div class="controls">
-        <select id="model-select">
-            <option value="gemini-1.5-flash">⚡ 1.5 Flash (기본)</option>
-            <option value="gemini-1.5-flash-latest">🚀 1.5 Flash (최신)</option>
-            <option value="gemini-1.5-pro-latest">🧠 1.5 Pro (최신)</option>
-            <option value="gemini-pro">🐢 1.0 Pro (구형/호환성최고)</option>
-        </select>
-        <input type="password" id="api-key-input" placeholder="새 API Key 입력">
-        <button id="btn-save-key">저장</button>
+    <strong>🤖 매뉴얼 비서 (v1 Stable)</strong>
+    <div>
+        <input type="password" id="api-key-input" placeholder="API Key 입력">
+        <button id="btn-save">키 저장</button>
     </div>
 </header>
 
 <div id="chat-box"></div>
 
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="API 키 저장 후 사용 가능" disabled>
+    <input type="text" id="user-input" placeholder="키 저장 후 사용 가능" disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
 <script>
-    let userApiKey = "";
+    let apiKey = localStorage.getItem("GEMINI_API_KEY");
     let manualContent = "";
-    let isProcessing = false;
-
+    
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('btn-send');
-    const apiKeyInput = document.getElementById('api-key-input');
-    const saveKeyBtn = document.getElementById('btn-save-key');
-    const modelSelect = document.getElementById('model-select');
+    const keyInput = document.getElementById('api-key-input');
 
-    // 1. 초기화
-    window.addEventListener('DOMContentLoaded', async () => {
-        const savedKey = localStorage.getItem("GEMINI_API_KEY");
-        if (savedKey) {
-            apiKeyInput.value = savedKey;
-            userApiKey = savedKey;
-            addMessage("system", "🔑 저장된 API 키를 불러왔습니다.");
-            await loadManual(); 
-        } else {
-            addMessage("system", "⚠️ 새 계정의 API 키를 입력하고 [저장]을 눌러주세요.");
-        }
-    });
+    // 1. 시작 시 키 확인 및 매뉴얼 로드
+    if (apiKey) {
+        keyInput.value = apiKey;
+        loadManual();
+    } else {
+        addMsg("system", "우측 상단에 API 키를 입력하고 저장해주세요.");
+    }
 
     // 2. 키 저장
-    saveKeyBtn.addEventListener('click', async () => {
-        const key = apiKeyInput.value.trim();
-        if (!key) return alert("API 키를 입력해주세요!");
-        userApiKey = key;
+    document.getElementById('btn-save').onclick = () => {
+        const key = keyInput.value.trim();
+        if(!key) return alert("키를 입력하세요");
+        apiKey = key;
         localStorage.setItem("GEMINI_API_KEY", key);
-        addMessage("system", "✅ API 키 저장 완료.");
-        await loadManual();
-    });
+        alert("저장되었습니다.");
+        loadManual();
+    };
 
     // 3. 매뉴얼 로드
     async function loadManual() {
-        if (!manualContent) {
-            try {
-                const response = await fetch('manual.txt?v=' + Date.now());
-                if (!response.ok) throw new Error("파일 없음");
-                manualContent = await response.text();
-                addMessage("system", "✅ 매뉴얼 로드 완료! (모델을 선택하고 질문하세요)");
-                addMessage("ai", "안녕하세요, 연호 선생님. 무엇을 도와드릴까요?");
-                
-                userInput.disabled = false;
-                sendBtn.disabled = false;
-                userInput.placeholder = "궁금한 내용을 물어보세요...";
-                userInput.focus();
-            } catch (error) {
-                addMessage("error-msg", "🚨 manual.txt 파일을 찾을 수 없습니다.");
-            }
+        try {
+            const res = await fetch('manual.txt?v=' + Date.now());
+            if(!res.ok) throw new Error("manual.txt 파일 없음");
+            manualContent = await res.text();
+            addMsg("system", "✅ 매뉴얼 로드 완료. 질문하세요.");
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+        } catch (e) {
+            addMsg("error", "🚨 manual.txt 파일을 찾을 수 없습니다.");
         }
     }
 
-    // 4. 전송 (핵심 수정: API 주소를 v1beta -> v1으로 변경)
+    // 4. 전송 (핵심: v1 주소 사용)
     async function sendMessage() {
         const text = userInput.value.trim();
-        if (!text || isProcessing) return;
-        if (!userApiKey) return alert("API 키가 없습니다.");
+        if(!text) return;
 
-        const selectedModel = modelSelect.value; 
-
-        addMessage("user", text);
+        addMsg("user", text);
         userInput.value = "";
-        isProcessing = true;
         userInput.disabled = true;
-        sendBtn.innerHTML = '<span class="loader"></span>';
+        sendBtn.innerText = "...";
 
         try {
-            console.log(`[요청] 모델: ${selectedModel}, 주소: v1`);
-
-            // [최종 해결책] 주소를 'v1beta'에서 'v1'으로 변경했습니다.
-            // v1beta는 최신 기능 테스트용이라 종종 모델을 못 찾지만, v1은 정식 버전이라 안정적입니다.
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${selectedModel}:generateContent?key=${userApiKey}`, {
+            // [중요] 주소가 'v1beta'가 아니라 'v1' 입니다. 모델은 'gemini-pro' 입니다.
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: `
-### 역할 ###
-너는 아동보호전문기관 사회복지사야. 아래 [매뉴얼]을 보고 질문에 한국어로 답해줘.
-
-### 매뉴얼 ###
-${manualContent.substring(0, 25000)}
-
-### 질문 ###
-${text}
-`
+                            text: `[매뉴얼]\n${manualContent.substring(0,20000)}\n\n[질문]\n${text}\n\n[지시]\n매뉴얼에 기반해서 한국어로 답변해.`
                         }]
                     }]
                 })
             });
 
+            const data = await response.json();
+            
             if (!response.ok) {
-                const errData = await response.json();
-                const errMsg = errData.error?.message || response.statusText;
-                
-                if (response.status === 404) {
-                     // 404가 뜨면 즉시 다른 모델을 시도하라고 안내
-                    throw new Error(`[404 모델 없음] '${selectedModel}' 모델을 찾지 못했습니다. 드롭다운에서 '1.0 Pro'나 '최신' 버전을 선택해서 다시 시도해보세요.`);
-                }
-                throw new Error(`[오류 ${response.status}] ${errMsg}`);
+                console.error(data);
+                throw new Error(data.error?.message || "API 호출 실패");
             }
 
-            const data = await response.json();
-            const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "답변 불가";
-            addMessage("ai", aiResponse);
+            const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "답변 불가";
+            addMsg("ai", aiText);
 
-        } catch (error) {
-            console.error(error);
-            addMessage("error-msg", `⚠️ ${error.message}`);
+        } catch (e) {
+            addMsg("error", `오류 발생: ${e.message}`);
         } finally {
-            isProcessing = false;
             userInput.disabled = false;
-            sendBtn.innerHTML = "전송";
+            sendBtn.innerText = "전송";
             userInput.focus();
         }
     }
 
-    function addMessage(type, text) {
+    function addMsg(type, text) {
         const div = document.createElement('div');
         div.className = `message ${type}`;
-        if (type === 'ai') div.innerHTML = marked.parse(text);
-        else div.textContent
+        div.innerHTML = type === 'ai' ? marked.parse(text) : text;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    sendBtn.onclick = sendMessage;
+    userInput.onkeypress = (e) => { if(e.key==='Enter') sendMessage(); }
+</script>
+</body>
+</html>
