@@ -1,9 +1,7 @@
 /**
- * ai-engine.js - 키를 코드에 저장하지 않는 보안 버전
+ * ai-engine.js - 가장 안정적인 표준 모델(1.5 Flash) 적용
  */
 export class AIEngine {
-    // [중요] 이제 여기에 API 키를 적지 않습니다!
-    // app.js에서 넘겨주는 키를 받아서 씁니다.
     constructor(apiKey) {
         this.apiKey = apiKey; 
         this.localManualContent = "";
@@ -24,8 +22,9 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // 무료 사용 가능한 실험용 모델
-        const modelName = "gemini-2.0-flash-exp";
+        // [핵심 변경] 실험용(exp) 대신 '표준 모델(1.5-flash)' 사용
+        // 이 모델은 속도가 빠르고 제한이 덜해서 가장 안정적입니다.
+        const modelName = "gemini-1.5-flash";
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
 
         const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
@@ -42,9 +41,8 @@ export class AIEngine {
             const data = await response.json();
 
             if (!response.ok) {
-                // 에러 발생 시 상세 내용 출력
                 let errorMsg = data.error ? data.error.message : "알 수 없는 오류";
-                if (response.status === 429) errorMsg = "⛔ (사용량 제한) 잠시 후 다시 시도해주세요.";
+                if (response.status === 429) errorMsg = "⛔ (일시적 사용량 초과) 1분 뒤에 다시 시도해주세요.";
                 throw new Error(errorMsg);
             }
 
