@@ -1,32 +1,40 @@
-// 👇 버전을 safe_mode 로 변경!
-import { AIEngine } from './ai-engine.js?v=safe_mode';
+/**
+ * app.js - 입력창 즉시 실행 및 무한 대기 버전
+ */
+// 👇 버전을 v_immediate 로 변경
+import { AIEngine } from './ai-engine.js?v=v_immediate';
 
 class App {
     constructor() {
-        if (window.__initialized) return;
-        window.__initialized = true;
+        // [수정] 복잡한 초기화 방지 코드를 제거하고 바로 실행합니다.
         this.isSending = false;
-        this.init();
+        // 페이지가 다 로딩되면 바로 init을 실행합니다.
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            this.init();
+        }
     }
 
     async init() {
         this.initElements();
         this.bindEvents();
         
-        // 키 저장소 이름을 바꿔서 새로 입력받게 합니다.
-        const STORAGE_KEY = 'gemini_safe_key_v1'; 
+        // [해결책 1] 키 확인 로직을 아주 단순하게 변경
+        const STORAGE_KEY = 'social_care_final_key'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
-        if (!savedKey) {
-            savedKey = prompt("🔑 [안전 모드] 구글 AI Studio에서 받은 '새 API 키'를 입력하세요:");
+        // 키가 없으면, 입력할 때까지 계속 물어봅니다 (새로고침 불필요)
+        while (!savedKey || savedKey.trim().length < 10) {
+            savedKey = prompt("🔑 [필수] 구글 API 키를 입력해주세요.\n(입력하지 않으면 시작할 수 없습니다)");
             if (savedKey && savedKey.trim().length > 10) {
                 localStorage.setItem(STORAGE_KEY, savedKey.trim());
             } else {
-                alert("키가 없으면 작동하지 않습니다. 새로고침 해주세요.");
-                return;
+                alert("API 키가 필요합니다. 다시 시도해주세요.");
             }
         }
 
+        // 입력받은 키로 엔진 시작
         this.ai = new AIEngine(savedKey);
         this.updateOnlineStatus(true);
         this.startAI();
@@ -63,11 +71,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `안전 모드 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', 'Gemini Pro(안전 모드)가 준비되었습니다. 이제 질문해 주세요.');
+                        this.appendMessage('ai', '안녕하세요. 설정이 완료되었습니다. 질문을 입력해주세요.');
                     }, 500);
                 }
             });
@@ -82,11 +90,9 @@ class App {
         this.chatInput.value = "";
         this.appendMessage('user', text);
         
-        // 메시지 박스를 미리 만들고
-        const aiMsg = this.appendMessage('ai', '생각 중...');
+        const aiMsg = this.appendMessage('ai', '...');
         
         try {
-            // 결과가 오면 텍스트를 교체합니다.
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
         } catch (e) { 
             aiMsg.innerText = "오류: " + e.message; 
