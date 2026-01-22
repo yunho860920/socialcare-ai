@@ -1,5 +1,5 @@
-// 👇 final6 로 변경!
-import { AIEngine } from './ai-engine.js?v=final6';
+// 👇 final7 로 변경!
+import { AIEngine } from './ai-engine.js?v=final7';
 
 class App {
     constructor() {
@@ -16,7 +16,8 @@ class App {
         this.updateOnlineStatus(true);
         this.startAI();
     }
-
+    
+    // ... (이하 코드는 기존과 동일, 편의를 위해 생략하지 않고 전체 제공) ...
     initElements() {
         this.chatMessages = document.getElementById('chat-messages');
         this.chatInput = document.getElementById('chat-input');
@@ -40,8 +41,8 @@ class App {
     updateOnlineStatus(isOnline) {
         if (!this.statusBadge) return;
         this.statusBadge.innerText = isOnline ? '🟢 온라인' : '🔴 오프라인';
-        this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
         this.statusBadge.className = isOnline ? 'badge-online' : 'badge-offline';
+        this.statusBadge.style.color = isOnline ? '#10b981' : '#ef4444';
     }
 
     async startAI() {
@@ -50,11 +51,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `Gemini 2.0 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `무료 모델(Exp) 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. Gemini 2.0 기반 비서입니다. 이제 질문을 입력해주세요.');
+                        this.appendMessage('ai', '안녕하세요. Gemini 2.0 Flash (무료 버전)입니다. 이제 정말 대화가 가능합니다!');
                     }, 500);
                 }
             });
