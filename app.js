@@ -1,9 +1,8 @@
-// 👇 버전을 v_victory 로 변경
-import { AIEngine } from './ai-engine.js?v=v_victory';
+// 👇 버전을 victory_final 로 변경
+import { AIEngine } from './ai-engine.js?v=victory_final';
 
 class App {
     constructor() {
-        this.isSending = false;
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.init());
         } else {
@@ -15,19 +14,19 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // 저장소 키 변경 -> 강제로 입력창 띄움
-        const STORAGE_KEY = 'GEMINI_VICTORY_KEY'; 
+        // [핵심] 저장소 이름을 바꿔서, 아까 입력한 틀린 키를 무시하고 다시 물어봅니다.
+        const STORAGE_KEY = 'GEMINI_VICTORY_KEY_V2'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
         if (!savedKey) {
+            // 화면 로딩 직후 입력창 띄우기
             setTimeout(() => {
-                // 안내 문구 강화
-                savedKey = prompt("🔑 [진짜 마지막] 방금 '새 프로젝트'에서 만든 키를 입력하세요:");
+                savedKey = prompt("🔑 [최종] 방금 '+ 새 프로젝트 만들기'로 받은 키를 입력하세요:");
                 if (savedKey && savedKey.trim().length > 10) {
                     localStorage.setItem(STORAGE_KEY, savedKey.trim());
-                    location.reload(); // 깔끔하게 새로고침
+                    location.reload(); 
                 } else {
-                    alert("키를 입력해주세요.");
+                    alert("키를 입력해야 시작됩니다.");
                 }
             }, 500);
         } else {
@@ -76,34 +75,28 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `최종 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `최종 연결... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 모든 준비가 끝났습니다. 질문해 보세요!');
+                        this.appendMessage('ai', '새 프로젝트 연결 성공! 이제 정말 됩니다.');
                     }, 500);
                 }
             });
-        } catch (e) { this.loadingText.innerText = '초기화 실패'; }
+        } catch (e) { this.loadingText.innerText = '준비 실패'; }
     }
 
     async handleSend() {
-        if (this.isSending) return;
         const text = this.chatInput.value.trim();
         if (!text) return;
-
-        this.isSending = true;
         this.chatInput.value = "";
         this.appendMessage('user', text);
-        
         const aiMsg = this.appendMessage('ai', '...');
-        
         try {
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
         } catch (e) { 
             aiMsg.innerText = "오류: " + e.message; 
-        } finally { 
-            this.isSending = false; 
+        } finally {
             this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
     }
@@ -113,7 +106,6 @@ class App {
         div.className = `message ${role}`;
         div.innerText = text;
         this.chatMessages.appendChild(div);
-        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         return div;
     }
 }
