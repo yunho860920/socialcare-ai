@@ -1,11 +1,9 @@
 /**
- * ai-engine.js - 안정화 v1 버전 + API 키 공백 자동 제거
+ * ai-engine.js - 모델 자가 진단 및 목록 확인 버전
  */
 export class AIEngine {
     constructor() {
-        // [중요] 키를 넣을 때 따옴표 안에 공백이 없도록 주의하세요!
-        // 혹시 공백이 있어도 .trim() 함수가 자동으로 지워줍니다.
-        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); 
+        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); // 키 입력 필수!
         this.localManualContent = "";
     }
 
@@ -27,11 +25,11 @@ export class AIEngine {
     }
 
     async generateResponse(userInput, onChunk) {
-        // [핵심 변경 1] v1beta -> v1 (가장 안정적인 정식 버전)
-        // [핵심 변경 2] 모델명 -> gemini-1.5-flash (무료 티어 표준 모델)
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+        // 일단 가장 최신 버전(v1beta)의 1.5-flash 모델로 시도해 봅니다.
+        const modelName = "gemini-1.5-flash";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
 
-        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 한국어로 답변하라.
+        const promptText = `너는 아동보호전문기관 업무 비서다. 아래 매뉴얼을 바탕으로 답변하라.
         
 [매뉴얼]
 ${this.localManualContent || "내용 없음"}
@@ -47,10 +45,12 @@ ${this.localManualContent || "내용 없음"}
 
             const data = await response.json();
             
-            // 만약 에러가 나면, 구체적인 이유를 화면에 보여줍니다.
+            // [핵심] 만약 404 에러가 나면, 사용 가능한 모델 목록을 조회합니다.
             if (!response.ok) {
-                const errorMsg = data.error ? data.error.message : "알 수 없는 오류";
-                throw new Error(`구글 서버 거절: ${errorMsg}`);
+                if (response.status === 404) {
+                    return await this.checkAvailableModels();
+                }
+                throw new Error(data.error ? data.error.message : "알 수 없는 오류");
             }
 
             if (data.candidates && data.candidates.length > 0) {
@@ -58,12 +58,34 @@ ${this.localManualContent || "내용 없음"}
                 if (onChunk) onChunk(text);
                 return text;
             } else {
-                return "답변을 생성하지 못했습니다. (내용 필터링됨)";
+                return "답변을 생성하지 못했습니다.";
             }
 
         } catch (error) {
-            // 이 에러 메시지가 채팅창에 그대로 뜹니다.
-            return "⛔ 연결 실패: " + error.message; 
+            return "⛔ 오류 발생: " + error.message;
+        }
+    }
+
+    // [자가 진단 함수] 내 키로 쓸 수 있는 모델이 뭔지 구글에 물어봅니다.
+    async checkAvailableModels() {
+        try {
+            const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`;
+            const response = await fetch(listUrl);
+            const data = await response.json();
+            
+            if (data.models) {
+                // 'generateContent' 기능을 지원하는 모델만 추려냅니다.
+                const chatModels = data.models
+                    .filter(m => m.supportedGenerationMethods.includes("generateContent"))
+                    .map(m => m.name.replace("models/", "")) // "models/" 글자 제거
+                    .join(", ");
+                
+                return `🚨 [모델 불일치] 현재 설정된 모델을 찾을 수 없습니다.\n\n✅ 선생님의 키로 사용 가능한 모델 목록:\n${chatModels}\n\n위 목록 중 하나를 골라 코드의 'modelName'을 수정해주세요.`;
+            } else {
+                return "⛔ 모델 목록을 불러올 수 없습니다. API 키가 올바른지 다시 확인해주세요.";
+            }
+        } catch (e) {
+            return "⛔ 모델 확인 중 오류 발생: " + e.message;
         }
     }
 }
