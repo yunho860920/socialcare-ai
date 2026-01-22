@@ -1,11 +1,10 @@
-// 👇 버전을 final_secure 로 변경!
-import { AIEngine } from './ai-engine.js?v=final_secure';
+// 👇 버전을 secure_fix 로 변경!
+import { AIEngine } from './ai-engine.js?v=secure_fix';
 
 class App {
     constructor() {
         if (window.__initialized) return;
         window.__initialized = true;
-        // 엔진 생성은 init() 내부로 미룹니다.
         this.isSending = false;
         this.init();
     }
@@ -14,17 +13,21 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [핵심] 브라우저에 저장된 키가 있는지 확인합니다.
-        let savedKey = localStorage.getItem('social_ai_key');
+        // [핵심 수정] 저장소 이름을 바꿨습니다. (이전 키 무시)
+        // 이제 브라우저는 저장된 키가 없다고 판단하고 무조건 물어봅니다.
+        const STORAGE_KEY = 'gemini_key_new_v1'; 
+        let savedKey = localStorage.getItem(STORAGE_KEY);
         
         // 키가 없으면 입력창을 띄웁니다.
-        if (!savedKey || savedKey.startsWith('YOUR_')) {
-            savedKey = prompt("구글 AI Studio에서 발급받은 API 키를 입력해주세요:\n(이 키는 선생님 브라우저에만 저장됩니다)");
-            if (savedKey) {
-                // 입력받은 키를 저장합니다 (다음번엔 안 물어봄)
-                localStorage.setItem('social_ai_key', savedKey.trim());
+        if (!savedKey) {
+            // 안내 문구를 더 명확하게 수정
+            savedKey = prompt("📢 [필수] 구글 AI Studio에서 발급받은 '새 API 키'를 붙여넣어 주세요:\n(이 키는 서버에 전송되지 않고 선생님 PC에만 저장됩니다)");
+            
+            if (savedKey && savedKey.trim().length > 10) {
+                // 입력받은 키를 저장합니다
+                localStorage.setItem(STORAGE_KEY, savedKey.trim());
             } else {
-                alert("API 키를 입력하지 않으면 사용할 수 없습니다. 새로고침 해주세요.");
+                alert("⚠️ 키가 입력되지 않았습니다. 화면을 새로고침(F5)하여 다시 입력해주세요.");
                 return;
             }
         }
@@ -69,11 +72,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `보안 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `AI 비서 연결 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '안녕하세요. 보안 키가 적용된 나만의 AI 비서입니다. 무엇을 도와드릴까요?');
+                        this.appendMessage('ai', '안녕하세요. 이제 준비되었습니다. 질문을 입력해주세요!');
                     }, 500);
                 }
             });
