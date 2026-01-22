@@ -1,5 +1,5 @@
-// 👇 버전을 v_final_one으로 변경하여 브라우저가 새 코드를 강제로 읽게 합니다.
-import { AIEngine } from './ai-engine.js?v=v_final_one';
+// 👇 버전을 REBOOT 로 변경 (캐시 완전 무시)
+import { AIEngine } from './ai-engine.js?v=REBOOT';
 
 class App {
     constructor() {
@@ -13,16 +13,18 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [핵심] 새로운 저장소 키를 사용하여 이전의 잘못된 키 기록을 무시합니다.
-        const STORAGE_KEY = 'gemini_absolute_final_v1'; 
-        let savedKey = localStorage.getItem(STORAGE_KEY);
+        // [정밀 해결] 저장소 키를 바꿔서, 과거의 차단된 키 기록을 강제로 버립니다.
+        const STORAGE_ID = 'GEMINI_API_KEY_REBOOT_V1'; 
+        let savedKey = localStorage.getItem(STORAGE_ID);
         
+        // 키가 없으면 무조건 물어봅니다.
         if (!savedKey) {
-            savedKey = prompt("📢 [마지막 단계] 구글 AI Studio에서 발급받은 '새 API 키'를 입력해주세요.\n(이 키는 선생님 브라우저에만 안전하게 저장됩니다)");
-            if (savedKey && savedKey.trim().length > 10) {
-                localStorage.setItem(STORAGE_KEY, savedKey.trim());
+            savedKey = prompt("📢 [시스템 초기화] 구글 AI Studio에서 발급받은 '새 API 키'를 입력하세요.\n(주의: 절대 코드 파일 안에 키를 적지 마세요!)");
+            
+            if (savedKey && savedKey.trim().length > 20) {
+                localStorage.setItem(STORAGE_ID, savedKey.trim());
             } else {
-                alert("키를 입력해야 시작할 수 있습니다. 새로고침(F5) 해주세요.");
+                alert("API 키가 없으면 작동하지 않습니다. F5를 눌러 다시 시도하세요.");
                 return;
             }
         }
@@ -63,11 +65,11 @@ class App {
             await this.ai.initialize((report) => {
                 const progress = Math.round(report.progress * 100);
                 this.progressFill.style.width = `${progress}%`;
-                this.loadingText.innerText = `서버 연결 중... (${progress}%)`;
+                this.loadingText.innerText = `시스템 재설정 중... (${progress}%)`;
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '반갑습니다, 연호 선생님! 모든 설정이 완료되었습니다. 이제 manual.txt 지침에 대해 질문해 주세요.');
+                        this.appendMessage('ai', '시스템이 초기화되었습니다. manual.txt 내용을 질문해주세요.');
                     }, 500);
                 }
             });
@@ -81,7 +83,7 @@ class App {
         this.isSending = true;
         this.chatInput.value = "";
         this.appendMessage('user', text);
-        const aiMsg = this.appendMessage('ai', '매뉴얼 확인 중...');
+        const aiMsg = this.appendMessage('ai', '분석 중...');
         try {
             await this.ai.generateResponse(text, (chunk) => aiMsg.innerText = chunk);
         } catch (e) { aiMsg.innerText = "오류: " + e.message; }
