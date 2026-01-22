@@ -3,7 +3,7 @@
  */
 export class AIEngine {
     constructor() {
-        this.apiKey = "YOUR_GEMINI_API_KEY".trim(); // 여기에 API 키를 넣으세요
+        this.apiKey = "AIzaSyBVjs6XIu2ciVm0nNMplsoPVrzDGllvRto".trim(); // 여기에 API 키를 넣으세요
         this.localManualContent = "";
     }
 
