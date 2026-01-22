@@ -1,5 +1,5 @@
-// 👇 버전을 victory_final 로 변경
-import { AIEngine } from './ai-engine.js?v=victory_final';
+// 👇 버전을 real_end 로 변경
+import { AIEngine } from './ai-engine.js?v=real_end';
 
 class App {
     constructor() {
@@ -14,14 +14,14 @@ class App {
         this.initElements();
         this.bindEvents();
         
-        // [핵심] 저장소 이름을 바꿔서, 아까 입력한 틀린 키를 무시하고 다시 물어봅니다.
-        const STORAGE_KEY = 'GEMINI_VICTORY_KEY_V2'; 
+        // [핵심] 저장소 이름을 또 바꿔서, 무조건 새 키를 입력받게 강제합니다.
+        const STORAGE_KEY = 'GEMINI_FINAL_KEY_V99'; 
         let savedKey = localStorage.getItem(STORAGE_KEY);
         
         if (!savedKey) {
             // 화면 로딩 직후 입력창 띄우기
             setTimeout(() => {
-                savedKey = prompt("🔑 [최종] 방금 '+ 새 프로젝트 만들기'로 받은 키를 입력하세요:");
+                savedKey = prompt("🔑 [이사 완료] 방금 '+ 새 프로젝트 만들기'로 받은 키를 넣어주세요:");
                 if (savedKey && savedKey.trim().length > 10) {
                     localStorage.setItem(STORAGE_KEY, savedKey.trim());
                     location.reload(); 
@@ -79,7 +79,7 @@ class App {
                 if (progress === 100) {
                     setTimeout(() => {
                         this.aiLoading.classList.add('hidden');
-                        this.appendMessage('ai', '새 프로젝트 연결 성공! 이제 정말 됩니다.');
+                        this.appendMessage('ai', '새 프로젝트 키 확인 완료. 이제 질문하세요!');
                     }, 500);
                 }
             });
