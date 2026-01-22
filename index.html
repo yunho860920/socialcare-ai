@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 맥락 인식 버전</title>
+    <title>SocialCare AI - 보안 맥락 인식 버전</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -38,26 +38,27 @@
 <div id="progress-container"><div id="progress-bar"></div></div>
 
 <header>
-    <div class="title">🛡️ 보안 안심 매뉴얼 비서</div>
-    <span id="status-text" class="status-badge">모델 준비 중...</span>
+    <div class="title">🛡️ 보안 매뉴얼 비서 (맥락 인식)</div>
+    <span id="status-text" class="status-badge">준비 중...</span>
 </header>
 
 <div id="chat-box"></div>
 
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="AI 엔진을 다운로드하고 있습니다..." disabled>
+    <input type="text" id="user-input" placeholder="AI 엔진을 불러오는 중입니다..." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
 <script type="module">
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
+    // 로컬 모델 (Llama 3.2 1B)
     const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 
     let engine = null;
     let manualContent = "";
-    // [핵심] 대화 내용을 기억할 저장소 추가
-    let conversationHistory = []; 
+    // [핵심] 대화 내용을 저장하는 '기억 장소'
+    let messagesHistory = []; 
     
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
@@ -78,13 +79,15 @@
     async function initialize() {
         progressContainer.style.display = 'block';
         try {
-            addMessage("system", "📂 manual.txt 파일 읽는 중...");
+            // 1. 매뉴얼 로드
+            addMessage("system", "📂 manual.txt 확인 중...");
             const res = await fetch('manual.txt?v=' + Date.now());
-            if (!res.ok) throw new Error("manual.txt 파일이 없습니다.");
+            if (!res.ok) throw new Error("manual.txt 파일 없음");
             manualContent = await res.text();
             addMessage("system", "✅ 매뉴얼 로드 완료.");
 
-            addMessage("system", "🚀 AI 엔진 구동 시작... (잠시만 기다려주세요)");
+            // 2. 엔진 로드
+            addMessage("system", "🚀 AI 뇌(Brain) 깨우는 중... (잠시만요)");
             
             engine = await CreateMLCEngine(
                 SELECTED_MODEL,
@@ -92,11 +95,27 @@
                     initProgressCallback: (report) => {
                         const percent = report.progress * 100;
                         progressBar.style.width = `${percent}%`;
-                        statusText.textContent = `다운로드: ${Math.round(percent)}%`;
-                        if (report.progress === 1.0) statusText.textContent = "🟢 대화 준비 완료";
+                        statusText.textContent = `로딩: ${Math.round(percent)}%`;
+                        if (report.progress === 1.0) statusText.textContent = "🟢 대화 가능";
                     }
                 }
             );
+
+            // [중요] 기억 장소 초기화: 시스템 규칙 + 매뉴얼 내용을 맨 처음에 심어둠
+            messagesHistory = [
+                { 
+                    role: "system", 
+                    content: "너는 아동보호전문기관의 AI 비서다. 아래 제공된 [매뉴얼]을 숙지하고 한국어로 답변해. 없는 내용은 지어내지 마." 
+                },
+                {
+                    role: "user",
+                    content: `### 매뉴얼 데이터 ###\n${manualContent.substring(0, 20000)}\n\n위 내용을 바탕으로 내 질문에 답변해줘.`
+                },
+                {
+                    role: "assistant",
+                    content: "네, 매뉴얼 내용을 숙지했습니다. 무엇을 도와드릴까요?"
+                }
+            ];
 
             progressContainer.style.display = 'none';
             statusText.classList.add('active');
@@ -104,14 +123,14 @@
             
             userInput.disabled = false;
             sendBtn.disabled = false;
-            userInput.placeholder = "질문을 입력하세요...";
+            userInput.placeholder = "질문을 입력하세요 (예: 정서학대란?)";
             userInput.focus();
             
-            addMessage("ai", "안녕하세요. 선생님의 PC에서 작동하는 보안 AI입니다. **앞선 대화 내용을 기억**하며 매뉴얼 기반으로 답변하겠습니다.");
+            addMessage("ai", "안녕하세요. **선생님의 대화 맥락을 기억하는** 보안 AI입니다. 무엇을 도와드릴까요?");
 
         } catch (error) {
             console.error(error);
-            addMessage("system", `🚨 오류 발생: ${error.message}`);
+            addMessage("system", `🚨 오류: ${error.message}`);
         }
     }
 
@@ -126,37 +145,15 @@
         sendBtn.textContent = "생각 중...";
 
         try {
-            // 1. 사용자 질문을 기억(History)에 저장
-            conversationHistory.push({ role: "user", content: text });
+            // 1. 사용자 질문을 기억에 추가
+            messagesHistory.push({ role: "user", content: text });
 
-            // 2. 프롬프트 구성 (매뉴얼 + 최근 대화 내역 2개만 전송 - 메모리 절약)
-            // 너무 많은 대화를 넣으면 1B 모델이 헷갈려하므로 최근 2~3턴만 유지
-            const recentHistory = conversationHistory.slice(-4); 
-
-            const messages = [
-                { 
-                    role: "system", 
-                    content: `너는 아동보호전문기관의 매뉴얼 AI다. 
-                    아래 [매뉴얼] 내용을 기반으로 한국어로 답변해.
-                    
-                    [답변 규칙]
-                    1. 질문과 관련된 내용을 매뉴얼에서 찾아 답변해.
-                    2. '이전 대화 내용'을 참고해서 맥락을 이어가. (예: '그것'이라고 물으면 앞의 주제를 말하는 것임)
-                    3. 똑같은 문장을 반복하지 마.
-                    4. 매뉴얼에 없는 내용은 모른다고 해.` 
-                },
-                { 
-                    role: "user", 
-                    content: `### 매뉴얼 데이터 ###\n${manualContent.substring(0, 20000)}` 
-                },
-                ...recentHistory // [중요] 여기에 이전 대화 기록이 들어감
-            ];
-
+            // 2. 답변 생성 요청 (전체 기억을 보냄)
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
-                messages,
-                temperature: 0.1, 
-                repetition_penalty: 1.2, // [중요] 앵무새 방지 (같은 말 반복 금지)
+                messages: messagesHistory, // 지금까지의 대화 내역 전체 전송
+                temperature: 0.1,  // 창의성 낮춤 (팩트 위주)
+                repetition_penalty: 1.15, // [중요] 앵무새 방지 (같은 말 반복 금지)
                 stream: true,
             });
 
@@ -171,8 +168,8 @@
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
 
-            // 3. AI 답변도 기억(History)에 저장
-            conversationHistory.push({ role: "assistant", content: fullResponse });
+            // 3. AI 답변을 기억에 추가 (다음 질문을 위해)
+            messagesHistory.push({ role: "assistant", content: fullResponse });
 
         } catch (error) {
             addMessage("system", "오류: " + error.message);
