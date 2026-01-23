@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialCare AI - 기계적 팩트 추출</title>
+    <title>업무용 챗봇 (Ollama)</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -21,28 +21,32 @@
     </style>
 </head>
 <body>
-<header><div class="title">🛡️ 매뉴얼 정밀 검색기 (Temp 0)</div></header>
+
+<header>
+    <div class="title">🦙 업무용 챗봇 (Ollama Local)</div>
+    <div style="font-size: 0.8rem; color: #888;">연결 상태: <span id="status">확인 중...</span></div>
+</header>
+
 <div id="chat-box"></div>
+
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="매뉴얼 로딩 중..." disabled>
+    <input type="text" id="user-input" placeholder="Ollama 연결 확인 중..." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
-<script type="module">
-    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
-    
-    // 로컬 모델 (Llama 3.2 1B)
-    const SELECTED_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
-    
-    let engine = null;
+<script>
+    const OLLAMA_API_URL = "http://localhost:11434/api/chat";
+    // [선택] 8GB 램에서 llama3.1이 너무 느리면 'llama3.2'로 바꾸세요.
+    const MODEL_NAME = "llama3.1"; 
+
     let manualContent = "";
-    // 1B 모델의 혼란을 막기 위해 히스토리는 '최근 1개'만 기억하거나 아예 뺍니다.
-    // 여기서는 맥락 유지를 위해 '직전 대화 1세트'만 유지합니다.
-    let lastConversation = ""; 
+    // 대화 맥락 기억용 배열
+    let chatHistory = []; 
 
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('btn-send');
+    const statusSpan = document.getElementById('status');
 
     function addMessage(type, text) {
         const div = document.createElement('div');
@@ -52,79 +56,121 @@
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    // 1. 초기화: 매뉴얼 읽기 + Ollama 연결 확인
     async function initialize() {
         try {
+            // 매뉴얼 로드
             const res = await fetch('manual.txt?v=' + Date.now());
+            if(!res.ok) throw new Error("manual.txt 없음");
             manualContent = await res.text();
-            
-            addMessage("system", "🚀 AI 엔진 시동 중...");
-            engine = await CreateMLCEngine(SELECTED_MODEL, { 
-                initProgressCallback: (p) => { 
-                    if(p.progress === 1) addMessage("system", "✅ 준비 완료 (정밀 모드)"); 
-                } 
+            addMessage("system", "✅ 매뉴얼 로드 완료");
+
+            // Ollama 연결 테스트 (빈 요청 보내보기)
+            try {
+                const test = await fetch('http://localhost:11434/api/tags');
+                if(test.ok) {
+                    statusSpan.textContent = "🟢 연결됨 (" + MODEL_NAME + ")";
+                    statusSpan.style.color = "#4caf50";
+                    addMessage("system", "🚀 Ollama 엔진이 준비되었습니다.");
+                    userInput.disabled = false;
+                    sendBtn.disabled = false;
+                    userInput.placeholder = "질문을 입력하세요...";
+                    userInput.focus();
+                } else { throw new Error("응답 없음"); }
+            } catch(err) {
+                throw new Error("Ollama가 실행되지 않았거나 접속이 차단됨 (2단계 설정 확인 필수)");
+            }
+
+            // 시스템 프롬프트 설정 (기억의 첫 단추)
+            chatHistory.push({
+                role: "system",
+                content: `너는 아동보호전문기관의 베테랑 사회복지사야. 
+아래 [매뉴얼]을 숙지하고, 사용자의 질문에 대해 한국어로 명확하고 친절하게 답변해. 
+없는 내용은 지어내지 말고, 매뉴얼에 근거해서만 말해.
+
+[매뉴얼 데이터]
+${manualContent.substring(0, 20000)}` 
             });
-            userInput.disabled = false; sendBtn.disabled = false;
-            userInput.placeholder = "질문을 입력하세요...";
-            userInput.focus();
-        } catch (e) { addMessage("system", "🚨 오류 발생"); }
+
+        } catch (e) {
+            statusSpan.textContent = "🔴 연결 실패";
+            statusSpan.style.color = "#f44336";
+            addMessage("system", `🚨 오류: ${e.message}<br>팁: 2단계 환경변수 설정 후 Ollama를 재시작했나요?`);
+        }
     }
 
     async function sendMessage() {
-        const text = userInput.value.trim(); if (!text) return;
-        addMessage("user", text); userInput.value = "";
-        
-        // [수정] 프롬프트를 아주 단순하게 변경 (AI가 헷갈리지 않게)
-        // 복잡한 JSON 구조 대신, 1B 모델이 이해하기 쉬운 텍스트 구조로 보냄
-        const promptMessages = [
-            { 
-                role: "system", 
-                content: "지침: 너는 매뉴얼 검색 봇이다. 아래 [매뉴얼] 내용에서 질문에 대한 답을 찾아 한국어로 답변해라. 생각이나 해석을 덧붙이지 마라." 
-            },
-            { 
-                role: "user", 
-                content: `
-[매뉴얼 데이터 시작]
-${manualContent.substring(0, 15000)}
-[매뉴얼 데이터 끝]
+        const text = userInput.value.trim();
+        if (!text) return;
 
-[이전 대화 맥락]
-${lastConversation}
+        addMessage("user", text);
+        userInput.value = "";
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.textContent = "생성 중...";
 
-[사용자 질문]
-${text}
-
-[답변]
-` 
-            }
-        ];
+        // 사용자 질문을 기억에 추가
+        chatHistory.push({ role: "user", content: text });
 
         try {
-            let fullResponse = "";
-            const chunks = await engine.chat.completions.create({
-                messages: promptMessages,
-                temperature: 0.0, // [요청하신 설정] 무조건 0으로 고정
-                repetition_penalty: 1.2, // 뇌정지(무한반복) 방지용 안전장치
-                stream: true
+            const response = await fetch(OLLAMA_API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: MODEL_NAME,
+                    messages: chatHistory, // 지금까지의 대화 기록 전송
+                    stream: true, // 타자기 효과
+                    options: {
+                        temperature: 0.1, // 차분하고 정확하게
+                        num_ctx: 4096     // 문맥 기억 용량
+                    }
+                })
             });
 
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let aiMsg = "";
+            
             const aiDiv = document.createElement('div');
             aiDiv.className = 'message ai';
             chatBox.appendChild(aiDiv);
 
-            for await (const chunk of chunks) {
-                fullResponse += chunk.choices[0]?.delta?.content || "";
-                aiDiv.innerHTML = marked.parse(fullResponse);
-                chatBox.scrollTop = chatBox.scrollHeight;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                // Ollama는 JSON 객체를 줄바꿈으로 구분해서 줍니다.
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (!line) continue;
+                    try {
+                        const json = JSON.parse(line);
+                        const content = json.message?.content || "";
+                        aiMsg += content;
+                        aiDiv.innerHTML = marked.parse(aiMsg);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    } catch (e) { console.error(e); }
+                }
             }
-            
-            // 직전 대화만 기억 (너무 많이 기억하면 1B 모델은 꼬임)
-            lastConversation = `Q: ${text}\nA: ${fullResponse}`;
 
-        } catch (e) { addMessage("system", "답변 실패"); }
+            // 답변이 끝나면 기억에 추가
+            chatHistory.push({ role: "assistant", content: aiMsg });
+
+        } catch (e) {
+            addMessage("system", "답변 생성 실패: " + e.message);
+        } finally {
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            sendBtn.textContent = "전송";
+            userInput.focus();
+        }
     }
 
     sendBtn.onclick = sendMessage;
     userInput.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+    
     initialize();
 </script>
 </body>
