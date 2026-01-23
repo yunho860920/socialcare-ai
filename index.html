@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>업무용 챗봇 (Zero Temp)</title>
+    <title>매뉴얼 정밀 검증기</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #121212; --chat-bg: #1e1e1e; --input-bg: #2d2d2d; --accent-color: #0052cc; --text-color: #e0e0e0; }
@@ -11,30 +11,34 @@
         
         header { padding: 15px 20px; background: var(--chat-bg); border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         .title { font-weight: 700; font-size: 1.1rem; color: #fff; }
-        
+        .debug-btn { font-size: 0.8rem; padding: 5px 10px; background: #444; color: #fff; border: 1px solid #666; border-radius: 5px; cursor: pointer; }
+
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
         .message { padding: 12px 18px; border-radius: 12px; max-width: 85%; word-break: break-word; font-size: 0.95rem; }
         .ai { background: #2d2d2d; border-left: 3px solid #4facfe; }
         .user { background: var(--accent-color); color: white; align-self: flex-end; }
-        .system { background: #263238; color: #b0bec5; text-align: center; align-self: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; }
+        .system { background: #263238; color: #b0bec5; text-align: center; font-size: 0.85rem; padding: 8px 15px; border-radius: 20px; align-self: center; }
         
         #input-area { padding: 20px; background: var(--chat-bg); border-top: 1px solid #333; display: flex; gap: 10px; }
         input { flex: 1; padding: 15px; border-radius: 10px; border: 1px solid #444; background: var(--input-bg); color: white; outline: none; }
         button { padding: 0 25px; border-radius: 10px; border: none; background: var(--accent-color); color: white; font-weight: bold; cursor: pointer; }
         
-        #progress-container { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #333; display: none; }
-        #progress-bar { height: 100%; background: #4facfe; width: 0%; transition: width 0.3s; }
+        #debug-panel { display: none; padding: 15px; background: #333; color: #0f0; font-family: monospace; font-size: 12px; height: 150px; overflow: auto; border-bottom: 1px solid #555; }
     </style>
 </head>
 <body>
 
-<div id="progress-container"><div id="progress-bar"></div></div>
-<header><div class="title">🤖 매뉴얼 팩트 뷰어</div></header>
+<header>
+    <div class="title">🔍 매뉴얼 검증 챗봇</div>
+    <button class="debug-btn" onclick="toggleDebug()">💾 매뉴얼 로드 확인</button>
+</header>
+
+<div id="debug-panel" id="debug-text">매뉴얼 파일이 로드되지 않았습니다.</div>
 
 <div id="chat-box"></div>
 
 <div id="input-area">
-    <input type="text" id="user-input" placeholder="엔진 시동 중..." disabled>
+    <input type="text" id="user-input" placeholder="시스템 로딩 중..." disabled>
     <button id="btn-send" disabled>전송</button>
 </div>
 
@@ -44,13 +48,16 @@
     
     let engine = null;
     let manualContent = "";
-    
-    // UI 요소
+    const debugPanel = document.getElementById('debug-panel');
+
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('btn-send');
-    const progressBar = document.getElementById('progress-bar');
-    const progressContainer = document.getElementById('progress-container');
+
+    // 디버그 패널 토글 함수
+    window.toggleDebug = () => {
+        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+    };
 
     function addMessage(type, text) {
         const div = document.createElement('div');
@@ -61,52 +68,63 @@
     }
 
     async function initialize() {
-        progressContainer.style.display = 'block';
         try {
-            // 1. 매뉴얼 로드 (캐시 방지 적용)
+            // 1. 매뉴얼 로드 확인
+            addMessage("system", "📂 manual.txt 읽는 중...");
             const res = await fetch('manual.txt?v=' + Date.now());
-            if(!res.ok) throw new Error("manual.txt 파일 없음");
+            if (!res.ok) throw new Error("manual.txt 파일을 찾을 수 없습니다.");
+            
             manualContent = await res.text();
             
-            // 2. 엔진 초기화
-            addMessage("system", "🚀 AI 엔진 초기화 중...");
+            // [중요] 디버그 패널에 매뉴얼 앞부분을 보여줌 (로드 성공 여부 시각화)
+            debugPanel.innerText = "✅ 로드 성공! (앞부분 500자 미리보기):\n\n" + manualContent.substring(0, 500) + "...";
+            addMessage("system", "✅ 매뉴얼 로드 성공 (우측 상단 버튼으로 내용 확인 가능)");
+
+            // 2. 엔진 시동
+            addMessage("system", "🚀 AI 엔진 시동 중...");
             engine = await CreateMLCEngine(SELECTED_MODEL, { 
                 initProgressCallback: (p) => { 
-                    progressBar.style.width = `${p.progress * 100}%`;
+                    if(p.progress === 1) {
+                        addMessage("system", "✅ 준비 완료."); 
+                        userInput.disabled = false; sendBtn.disabled = false;
+                        userInput.placeholder = "질문을 입력하세요...";
+                        userInput.focus();
+                    }
                 } 
             });
-            
-            // 3. 준비 완료
-            progressContainer.style.display = 'none';
-            addMessage("system", "✅ 준비 완료. 질문해 주세요."); 
-            userInput.disabled = false; 
-            sendBtn.disabled = false;
-            userInput.placeholder = "질문을 입력하세요 (예: 신체학대 정의)";
-            userInput.focus();
 
-        } catch (e) { addMessage("system", "🚨 오류: " + e.message); }
+        } catch (e) { 
+            addMessage("system", "🚨 치명적 오류: " + e.message); 
+            debugPanel.innerText = "오류 발생: " + e.message;
+        }
     }
 
     async function sendMessage() {
         const text = userInput.value.trim(); if (!text) return;
         addMessage("user", text); userInput.value = "";
         
-        // [최적화된 프롬프트]
-        // 역할놀이 제거, 오직 '본문 기반 찾기' 명령만 수행
+        // [매뉴얼 강제 주입 전략]
+        // 1B 모델의 용량 한계(Context Window)를 고려하여 8,000자로 제한
+        // 질문 바로 위에 매뉴얼을 배치하여 '컨닝'하기 쉽게 만듦
+        const limitedManual = manualContent.substring(0, 8000); 
+
         const messages = [
             { 
                 role: "user", 
                 content: `
-[지침]
-아래 제공된 [매뉴얼] 텍스트 내에서 [질문]에 대한 답을 찾아 그대로 출력하세요.
-매뉴얼에 없는 내용은 "내용 없음"이라고만 답하세요.
-생각이나 의견을 덧붙이지 마세요.
+[절대 규칙]
+너는 아래 제공된 '참고 텍스트'의 내용만 가지고 대답해야 한다.
+네가 원래 알고 있던 지식은 모두 잊어라.
+'참고 텍스트'에 없는 내용은 "매뉴얼에 내용이 없습니다"라고 답해라.
 
-[매뉴얼]
-${manualContent.substring(0, 15000)}
+[참고 텍스트 시작]
+${limitedManual}
+[참고 텍스트 끝]
 
 [질문]
 ${text}
+
+[답변]
 ` 
             }
         ];
@@ -115,9 +133,8 @@ ${text}
             let fullResponse = "";
             const chunks = await engine.chat.completions.create({
                 messages: messages,
-                temperature: 0.0,      // [핵심] 무조건 0 (창의성 제거)
-                repetition_penalty: 1.2, // [핵심] 반복 억제 강화
-                top_p: 0.8,            // [핵심] 확률 낮은 단어 배제
+                temperature: 0.0, // 상상력 완전 차단
+                repetition_penalty: 1.2, // 반복 방지
                 stream: true
             });
 
@@ -131,7 +148,7 @@ ${text}
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
 
-        } catch (e) { addMessage("system", "처리 실패"); }
+        } catch (e) { addMessage("system", "답변 실패"); }
     }
 
     sendBtn.onclick = sendMessage;
